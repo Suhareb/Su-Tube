@@ -1,4 +1,4 @@
-# Skipii
+# Su Tube
 
 An ad-free YouTube player for Android, built in Material 3 Expressive.
 
@@ -12,7 +12,7 @@ Sponsor segments get skipped with [SponsorBlock](https://sponsor.ajay.app).
 
 ## Download
 
-**[Skipii.apk](https://github.com/deciocrytek/Skipii/releases/latest/download/Skipii.apk)**: always the
+**[Su Tube.apk](https://github.com/deciocrytek/Skipii/releases/latest/download/Su Tube.apk)**: always the
 latest release. Open it on your phone and allow installs from your browser. Updates install over
 the previous version.
 
@@ -71,7 +71,7 @@ Judge smoothness on the **release** build; debug Compose runs unoptimized.
 ## Project layout
 
 ```
-app/src/main/java/com/decio/skipii/
+app/src/main/java/com/decio/su-tube/
   YouTube.kt          search + video details (NewPipeExtractor), stream cache and selection
   PlaybackService.kt  Media3 session service, DASH/merging media sources
   PlayerState.kt      UI-side playback state over a MediaController
