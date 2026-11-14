@@ -101,7 +101,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Comments for the open video: first page, paging, per-comment replies, likes and posting. */
@@ -602,10 +606,51 @@ private fun Composer(state: CommentsState) {
     }
 }
 
+/** Taps on one comment row, counted until the pause that ends them. */
+private class TapCounter {
+    var count = 0
+    var job: Job? = null
+}
+
+private const val TapWindowMs = 300L
+
 @Composable
 private fun CommentRow(comment: Comment, state: CommentsState, isReply: Boolean = false) {
     val c = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().padding(start = if (isReply) 62.dp else 20.dp, end = 20.dp, top = 10.dp, bottom = 6.dp)) {
+    val haptic = LocalHapticFeedback.current
+    val tapScope = rememberCoroutineScope()
+    val taps = remember(comment.id) { TapCounter() }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            // Double tap likes the comment, triple tap starts a reply (signed in only). A short wait after
+            // each tap tells the two apart, so a triple tap never leaves a like behind.
+            .pointerInput(comment.id) {
+                detectTapGestures {
+                    val canAct = Account.signedIn && !comment.id.startsWith("local-")
+                    taps.job?.cancel()
+                    taps.count++
+                    if (taps.count >= 3) {
+                        taps.count = 0
+                        if (canAct) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            state.startReply(comment)
+                        }
+                    } else {
+                        val seen = taps.count
+                        taps.job = tapScope.launch {
+                            delay(TapWindowMs)
+                            taps.count = 0
+                            if (seen == 2 && canAct && state.liked[comment.id] != true) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                state.toggleLike(comment) { state.postError = it }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(start = if (isReply) 62.dp else 20.dp, end = 20.dp, top = 10.dp, bottom = 6.dp),
+    ) {
         ChannelAvatar(comment.avatar, comment.author, size = if (isReply) 28 else 36)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

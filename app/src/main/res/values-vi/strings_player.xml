@@ -51,7 +51,7 @@
     <string name="player_error_bot_check">YouTube đang yêu cầu xác nhận bạn không phải là bot.</string>
     <string name="player_error_bot_check_hint">Bật rồi tắt chế độ máy bay thường sẽ khắc phục được.</string>
     <string name="player_error_private">Đây là video riêng tư.</string>
-    <string name="player_error_members_only">Video này chỉ dành cho hội viên. Skipii chưa thể phát video dành cho hội viên.</string>
+    <string name="player_error_members_only">Video này chỉ dành cho hội viên. Su Tube chưa thể phát video dành cho hội viên.</string>
     <string name="player_error_unavailable">Video này không có sẵn.</string>
     <string name="player_error_rate_limited">YouTube đang giới hạn số yêu cầu. Hãy thử lại sau một phút.</string>
     <string name="player_error_offline">Không thể kết nối với YouTube. Hãy kiểm tra kết nối của bạn.</string>

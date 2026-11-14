@@ -53,7 +53,7 @@
     <string name="bar_transcript">Расшифровка</string>
 
     <!-- Message when the phone's settings don't allow picture-in-picture for the app. -->
-    <string name="bar_pip_off">Режим «Картинка в картинке» отключён для Skipii в настройках.</string>
+    <string name="bar_pip_off">Режим «Картинка в картинке» отключён для Su Tube в настройках.</string>
 
     <!-- Pill above the scrub preview: let go here to not jump. Short. -->
     <string name="bar_cancel">Отмена</string>

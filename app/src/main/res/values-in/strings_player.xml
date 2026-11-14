@@ -50,7 +50,7 @@
     <string name="player_error_bot_check">YouTube meminta konfirmasi bahwa Anda bukan bot.</string>
     <string name="player_error_bot_check_hint">Menyalakan lalu mematikan mode pesawat biasanya mengatasinya.</string>
     <string name="player_error_private">Video ini bersifat pribadi.</string>
-    <string name="player_error_members_only">Video ini khusus anggota. Skipii belum dapat memutar video khusus anggota.</string>
+    <string name="player_error_members_only">Video ini khusus anggota. Su Tube belum dapat memutar video khusus anggota.</string>
     <string name="player_error_unavailable">Video ini tidak tersedia.</string>
     <string name="player_error_rate_limited">YouTube sedang membatasi permintaan. Coba lagi sebentar lagi.</string>
     <string name="player_error_offline">Tidak dapat terhubung ke YouTube. Periksa koneksi Anda.</string>

@@ -30,7 +30,7 @@
         <item quantity="other">%1$s canais com o sino ativado</item>
     </plurals>
     <string name="settings_bells_none">Nenhum sino ativado ainda</string>
-    <string name="settings_bells_empty">Ative o sino no botão Inscrever-se de um canal e o Skipii avisa sobre cada vídeo novo.</string>
+    <string name="settings_bells_empty">Ative o sino no botão Inscrever-se de um canal e o Su Tube avisa sobre cada vídeo novo.</string>
     <string name="settings_bell_line">Cada vídeo novo</string>
     <string name="settings_system_notifications">Configurações de notificação do Android</string>
     <string name="settings_system_notifications_line">Som, vibração, Não perturbe</string>
@@ -44,7 +44,7 @@
     <string name="settings_source_line">Relate um problema ou peça um recurso</string>
     <string name="settings_crash_title">Relatório de falhas</string>
     <string name="settings_crash_saved">Salvo da última falha. Compartilhe e cole numa issue do GitHub</string>
-    <string name="settings_crash_none">Nenhuma falha salva. Compartilha como o Android fechou o Skipii da última vez, para uma issue do GitHub</string>
+    <string name="settings_crash_none">Nenhuma falha salva. Compartilha como o Android fechou o Su Tube da última vez, para uma issue do GitHub</string>
     <string name="settings_crash_tile">Relatório de falhas salvo</string>
     <string name="settings_crash_share">Compartilhar relatório de falhas</string>
     <string name="settings_made_by">Feito por %1$s</string>
@@ -67,11 +67,11 @@
     <string name="settings_auto_pip_line">Ir para a tela inicial com um vídeo tocando o mantém numa janela pequena</string>
     <!-- Settings › Playback: playback controls as a live activity (Android's Live Updates) while the app is off screen. -->
     <string name="settings_live_title">Atividade ao vivo</string>
-    <string name="settings_live_line">Ao sair do Skipii com um vídeo tocando, os controles ficam na barra de status e na tela de bloqueio</string>
+    <string name="settings_live_line">Ao sair do Su Tube com um vídeo tocando, os controles ficam na barra de status e na tela de bloqueio</string>
     <string name="settings_live_needs">Requer Android 16 QPR1 ou mais recente</string>
     <string name="settings_live_refused">Este celular a mostra só como notificação comum, então ficam apenas os controles de mídia</string>
     <string name="settings_live_allow_title">Permitir atualizações ao vivo</string>
-    <string name="settings_live_allow_line">As atualizações ao vivo estão desativadas para o Skipii nas configurações do Android</string>
+    <string name="settings_live_allow_line">As atualizações ao vivo estão desativadas para o Su Tube nas configurações do Android</string>
     <!-- Only for Settings' search: other words people use for it. -->
     <string name="settings_live_words">Atualização ao vivo, Now Bar, barra de status, tela de bloqueio</string>
     <string name="settings_swipe_brightness_title">Deslizar para ajustar o brilho</string>

@@ -30,7 +30,7 @@
     <!-- Notification channel name (Android Settings › Notifications). -->
     <string name="app_update_channel">Update aplikasi</string>
     <!-- Notification after the app updated itself, %1$s is the version ("0.5.79"). -->
-    <string name="app_updated_title">Skipii diupdate ke %1$s</string>
+    <string name="app_updated_title">Su Tube diupdate ke %1$s</string>
     <string name="app_updated_text">Ketuk untuk membuka</string>
 
     <!-- The Subscribe button (player and channel page). Short: shares a row with the bell key. -->
@@ -47,9 +47,9 @@
     <string name="app_bell_off_message_unnamed">Notifikasi nonaktif untuk channel ini</string>
     <string name="app_bell_failed">Tidak dapat mengubah lonceng.</string>
     <!-- Notifications were refused when asked (Android 13+). -->
-    <string name="app_bell_allow_notifications">Izinkan notifikasi Skipii untuk menggunakan lonceng.</string>
+    <string name="app_bell_allow_notifications">Izinkan notifikasi Su Tube untuk menggunakan lonceng.</string>
     <!-- Notifications are off in Android's settings; the settings page opens next. -->
-    <string name="app_bell_turn_on_notifications">Aktifkan notifikasi Skipii untuk menggunakan lonceng.</string>
+    <string name="app_bell_turn_on_notifications">Aktifkan notifikasi Su Tube untuk menggunakan lonceng.</string>
 
     <!-- Notification channel for new videos from channels with the bell on (Android Settings › Notifications). -->
     <string name="app_new_videos_channel">Video baru</string>
@@ -64,7 +64,7 @@
     <string name="app_error_youtube_returned">YouTube mengembalikan %1$s</string>
     <!-- The live activity's notification channel, and its skip buttons. %1$s = seconds ("10"). -->
     <string name="app_live_channel">Diputar di latar belakang</string>
-    <string name="app_live_channel_description">Kontrol pemutaran saat Skipii tidak di layar</string>
+    <string name="app_live_channel_description">Kontrol pemutaran saat Su Tube tidak di layar</string>
     <string name="app_live_back">−%1$s dtk</string>
     <string name="app_live_forward">+%1$s dtk</string>
 </resources>

@@ -52,7 +52,7 @@
     <string name="bar_transcript">Transcript</string>
 
     <!-- Message when the phone's settings don't allow picture-in-picture for the app. -->
-    <string name="bar_pip_off">Picture-in-picture is turned off for Skipii in Settings.</string>
+    <string name="bar_pip_off">Picture-in-picture is turned off for Su Tube in Settings.</string>
 
     <!-- Pill above the scrub preview: let go here to not jump. Short. -->
     <string name="bar_cancel">Cancel</string>

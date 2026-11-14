@@ -50,7 +50,7 @@
     <string name="player_error_bot_check">YouTube がロボットでないことの確認を求めています。</string>
     <string name="player_error_bot_check_hint">機内モードをオンにしてからオフに戻すと、たいてい解決します。</string>
     <string name="player_error_private">この動画は非公開です。</string>
-    <string name="player_error_members_only">この動画はメンバー限定です。Skipii はまだメンバー限定動画を再生できません。</string>
+    <string name="player_error_members_only">この動画はメンバー限定です。Su Tube はまだメンバー限定動画を再生できません。</string>
     <string name="player_error_unavailable">この動画は利用できません。</string>
     <string name="player_error_rate_limited">現在 YouTube がリクエストを制限しています。1 分後にもう一度お試しください。</string>
     <string name="player_error_offline">YouTube に接続できませんでした。接続を確認してください。</string>

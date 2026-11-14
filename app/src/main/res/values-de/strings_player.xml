@@ -51,7 +51,7 @@
     <string name="player_error_bot_check">YouTube möchte bestätigt haben, dass du kein Bot bist.</string>
     <string name="player_error_bot_check_hint">Flugmodus kurz ein- und wieder ausschalten hilft meistens.</string>
     <string name="player_error_private">Dieses Video ist privat.</string>
-    <string name="player_error_members_only">Dieses Video ist nur für Kanalmitglieder. Skipii kann solche Videos noch nicht abspielen.</string>
+    <string name="player_error_members_only">Dieses Video ist nur für Kanalmitglieder. Su Tube kann solche Videos noch nicht abspielen.</string>
     <string name="player_error_unavailable">Dieses Video ist nicht verfügbar.</string>
     <string name="player_error_rate_limited">YouTube begrenzt gerade die Anfragen. Versuch es in einer Minute noch einmal.</string>
     <string name="player_error_offline">YouTube ist nicht erreichbar. Prüfe deine Verbindung.</string>

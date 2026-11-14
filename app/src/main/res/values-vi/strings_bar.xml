@@ -53,7 +53,7 @@
     <string name="bar_transcript">Bản chép lời</string>
 
     <!-- Message when the phone's settings don't allow picture-in-picture for the app. -->
-    <string name="bar_pip_off">Chế độ hình trong hình đang tắt cho Skipii trong Cài đặt.</string>
+    <string name="bar_pip_off">Chế độ hình trong hình đang tắt cho Su Tube trong Cài đặt.</string>
 
     <!-- Pill above the scrub preview: let go here to not jump. Short. -->
     <string name="bar_cancel">Hủy</string>

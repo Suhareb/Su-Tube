@@ -52,7 +52,7 @@
     <string name="bar_transcript">Trascrizione</string>
 
     <!-- Message when the phone's settings don't allow picture-in-picture for the app. -->
-    <string name="bar_pip_off">Il Picture in picture è disattivato per Skipii nelle Impostazioni.</string>
+    <string name="bar_pip_off">Il Picture in picture è disattivato per Su Tube nelle Impostazioni.</string>
 
     <!-- Pill above the scrub preview: let go here to not jump. Short. -->
     <string name="bar_cancel">Annulla</string>

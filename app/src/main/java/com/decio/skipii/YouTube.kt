@@ -84,7 +84,13 @@ data class VideoDetails(
     val storyboards: List<Storyboard> = emptyList(),
     /** Every caption track YouTube has for this video (Captions.kt). */
     val captions: List<CaptionTrack> = emptyList(),
+    /** Links in [description] (character ranges into it), with their real targets. */
+    val descriptionLinks: List<DescriptionLink> = emptyList(),
 )
+
+/** A link in a video description: characters [start] until [end] open [url]. */
+@Immutable
+data class DescriptionLink(val start: Int, val end: Int, val url: String)
 
 @Immutable
 data class Chapter(val startMs: Long, val title: String)
@@ -202,10 +208,8 @@ object YouTube {
                 views = info.viewCount,
                 uploaded = uploadedText(info.textualUploadDate, info.uploadDate),
             ),
-            description = info.description?.let { d ->
-                if (d.type == Description.HTML) HtmlCompat.fromHtml(d.content, HtmlCompat.FROM_HTML_MODE_COMPACT).toString().trim()
-                else d.content.trim()
-            }.orEmpty(),
+            description = descriptionParts(info.description).first,
+            descriptionLinks = descriptionParts(info.description).second,
             likes = info.likeCount,
             subscribers = info.uploaderSubscriberCount,
             related = info.relatedItems.filterIsInstance<StreamInfoItem>().mapNotNull { it.toVideoItem() },
@@ -546,3 +550,28 @@ object StreamSelection {
         .distinct()
         .sortedDescending()
 }
+
+
+/** The description as plain text, plus the real target of every link in it (the text of a link can be shortened). */
+private fun descriptionParts(d: Description?): Pair<String, List<DescriptionLink>> {
+    if (d == null) return "" to emptyList()
+    if (d.type != Description.HTML) return d.content.trim() to emptyList()
+    val spanned = HtmlCompat.fromHtml(d.content, HtmlCompat.FROM_HTML_MODE_COMPACT)
+    val raw = spanned.toString()
+    val lead = raw.length - raw.trimStart().length
+    val text = raw.trim()
+    val links = spanned.getSpans(0, spanned.length, android.text.style.URLSpan::class.java).mapNotNull { span ->
+        val start = spanned.getSpanStart(span) - lead
+        val end = minOf(spanned.getSpanEnd(span) - lead, text.length)
+        val url = span.url?.let(::unwrapRedirect)
+        val usable = url != null && (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("mailto:"))
+        if (!usable || start < 0 || start >= end) null else DescriptionLink(start, end, url!!)
+    }
+    return text to links
+}
+
+/** YouTube wraps outside links in youtube.com/redirect?q=…; open the real address instead. */
+private fun unwrapRedirect(url: String): String = runCatching {
+    val uri = android.net.Uri.parse(url)
+    if (uri.host?.endsWith("youtube.com") == true && uri.path == "/redirect") uri.getQueryParameter("q") ?: url else url
+}.getOrDefault(url)

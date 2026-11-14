@@ -30,7 +30,7 @@
     <!-- Notification channel name (Android Settings › Notifications). -->
     <string name="app_update_channel">Actualizaciones de la app</string>
     <!-- Notification after the app updated itself, %1$s is the version ("0.5.79"). -->
-    <string name="app_updated_title">Skipii se actualizó a la versión %1$s</string>
+    <string name="app_updated_title">Su Tube se actualizó a la versión %1$s</string>
     <string name="app_updated_text">Toca para abrir</string>
 
     <!-- The Subscribe button (player and channel page). Short: shares a row with the bell key. -->
@@ -47,9 +47,9 @@
     <string name="app_bell_off_message_unnamed">Notificaciones desactivadas para este canal</string>
     <string name="app_bell_failed">No se pudo cambiar la campana.</string>
     <!-- Notifications were refused when asked (Android 13+). -->
-    <string name="app_bell_allow_notifications">Permite las notificaciones de Skipii para usar la campana.</string>
+    <string name="app_bell_allow_notifications">Permite las notificaciones de Su Tube para usar la campana.</string>
     <!-- Notifications are off in Android's settings; the settings page opens next. -->
-    <string name="app_bell_turn_on_notifications">Activa las notificaciones de Skipii para usar la campana.</string>
+    <string name="app_bell_turn_on_notifications">Activa las notificaciones de Su Tube para usar la campana.</string>
 
     <!-- Notification channel for new videos from channels with the bell on (Android Settings › Notifications). -->
     <string name="app_new_videos_channel">Videos nuevos</string>
@@ -64,7 +64,7 @@
     <string name="app_error_youtube_returned">YouTube devolvió %1$s</string>
     <!-- The live activity's notification channel, and its skip buttons. %1$s = seconds ("10"). -->
     <string name="app_live_channel">Reproduciendo en segundo plano</string>
-    <string name="app_live_channel_description">Controles de reproducción mientras Skipii no está en pantalla</string>
+    <string name="app_live_channel_description">Controles de reproducción mientras Su Tube no está en pantalla</string>
     <string name="app_live_back">−%1$s s</string>
     <string name="app_live_forward">+%1$s s</string>
 </resources>

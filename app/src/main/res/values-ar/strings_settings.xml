@@ -33,7 +33,7 @@
         <item quantity="other">%1$s قناة جرسها مفعّل</item>
     </plurals>
     <string name="settings_bells_none">لم يُفعَّل أي جرس بعد</string>
-    <string name="settings_bells_empty">فعّل الجرس على زر الاشتراك في قناة، وسيخبرك Skipii بكل فيديو جديد لها.</string>
+    <string name="settings_bells_empty">فعّل الجرس على زر الاشتراك في قناة، وسيخبرك Su Tube بكل فيديو جديد لها.</string>
     <string name="settings_bell_line">كل فيديو جديد</string>
     <string name="settings_system_notifications">إعدادات الإشعارات في Android</string>
     <string name="settings_system_notifications_line">الصوت، الاهتزاز، عدم الإزعاج</string>
@@ -47,7 +47,7 @@
     <string name="settings_source_line">أبلغ عن مشكلة أو اطلب ميزة</string>
     <string name="settings_crash_title">تقرير الأعطال</string>
     <string name="settings_crash_saved">محفوظ من آخر عطل. شاركه والصقه في بلاغ على GitHub</string>
-    <string name="settings_crash_none">لا يوجد عطل محفوظ. يشارك كيف أغلق Android تطبيق Skipii آخر مرة، لبلاغ على GitHub</string>
+    <string name="settings_crash_none">لا يوجد عطل محفوظ. يشارك كيف أغلق Android تطبيق Su Tube آخر مرة، لبلاغ على GitHub</string>
     <string name="settings_crash_tile">تم حفظ تقرير عطل</string>
     <string name="settings_crash_share">مشاركة تقرير الأعطال</string>
     <string name="settings_made_by">من صنع %1$s</string>
@@ -70,11 +70,11 @@
     <string name="settings_auto_pip_line">عند الذهاب إلى الشاشة الرئيسية أثناء تشغيل فيديو، يستمر في نافذة صغيرة</string>
     <!-- Settings › Playback: playback controls as a live activity (Android's Live Updates) while the app is off screen. -->
     <string name="settings_live_title">نشاط مباشر</string>
-    <string name="settings_live_line">عند مغادرة Skipii أثناء تشغيل فيديو، تظهر عناصر التحكم في شريط الحالة وعلى شاشة القفل</string>
+    <string name="settings_live_line">عند مغادرة Su Tube أثناء تشغيل فيديو، تظهر عناصر التحكم في شريط الحالة وعلى شاشة القفل</string>
     <string name="settings_live_needs">يتطلب Android 16 QPR1 أو أحدث</string>
     <string name="settings_live_refused">يعرضه هذا الهاتف كإشعار عادي فقط، لذا تبقى عناصر التحكم في الوسائط وحدها</string>
     <string name="settings_live_allow_title">السماح بالتحديثات المباشرة</string>
-    <string name="settings_live_allow_line">التحديثات المباشرة متوقفة لـ Skipii في إعدادات Android</string>
+    <string name="settings_live_allow_line">التحديثات المباشرة متوقفة لـ Su Tube في إعدادات Android</string>
     <!-- Only for Settings' search: other words people use for it. -->
     <string name="settings_live_words">تحديث مباشر، Now Bar، شريط الحالة، شاشة القفل</string>
     <string name="settings_swipe_brightness_title">السحب لضبط السطوع</string>

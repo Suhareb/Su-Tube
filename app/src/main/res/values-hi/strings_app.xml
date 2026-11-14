@@ -31,7 +31,7 @@
     <!-- Notification channel name (Android Settings › Notifications). -->
     <string name="app_update_channel">ऐप अपडेट</string>
     <!-- Notification after the app updated itself, %1$s is the version ("0.5.79"). -->
-    <string name="app_updated_title">Skipii को %1$s पर अपडेट किया गया</string>
+    <string name="app_updated_title">Su Tube को %1$s पर अपडेट किया गया</string>
     <string name="app_updated_text">खोलने के लिए टैप करें</string>
 
     <!-- The Subscribe button (player and channel page). Short: shares a row with the bell key. -->
@@ -48,9 +48,9 @@
     <string name="app_bell_off_message_unnamed">इस चैनल की सूचनाएं बंद हैं</string>
     <string name="app_bell_failed">घंटी की सेटिंग नहीं बदली जा सकी.</string>
     <!-- Notifications were refused when asked (Android 13+). -->
-    <string name="app_bell_allow_notifications">घंटी इस्तेमाल करने के लिए Skipii की सूचनाओं को अनुमति दें.</string>
+    <string name="app_bell_allow_notifications">घंटी इस्तेमाल करने के लिए Su Tube की सूचनाओं को अनुमति दें.</string>
     <!-- Notifications are off in Android's settings; the settings page opens next. -->
-    <string name="app_bell_turn_on_notifications">घंटी इस्तेमाल करने के लिए Skipii की सूचनाएं चालू करें.</string>
+    <string name="app_bell_turn_on_notifications">घंटी इस्तेमाल करने के लिए Su Tube की सूचनाएं चालू करें.</string>
 
     <!-- Notification channel for new videos from channels with the bell on (Android Settings › Notifications). -->
     <string name="app_new_videos_channel">नए वीडियो</string>
@@ -65,7 +65,7 @@
     <string name="app_error_youtube_returned">YouTube ने %1$s लौटाया</string>
     <!-- The live activity's notification channel, and its skip buttons. %1$s = seconds ("10"). -->
     <string name="app_live_channel">बैकग्राउंड में चल रहा है</string>
-    <string name="app_live_channel_description">Skipii स्क्रीन पर न होने पर प्लेबैक कंट्रोल</string>
+    <string name="app_live_channel_description">Su Tube स्क्रीन पर न होने पर प्लेबैक कंट्रोल</string>
     <string name="app_live_back">−%1$s से॰</string>
     <string name="app_live_forward">+%1$s से॰</string>
 </resources>

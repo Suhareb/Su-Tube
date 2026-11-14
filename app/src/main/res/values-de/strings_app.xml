@@ -30,7 +30,7 @@
     <!-- Notification channel name (Android Settings › Notifications). -->
     <string name="app_update_channel">App-Updates</string>
     <!-- Notification after the app updated itself, %1$s is the version ("0.5.79"). -->
-    <string name="app_updated_title">Skipii auf %1$s aktualisiert</string>
+    <string name="app_updated_title">Su Tube auf %1$s aktualisiert</string>
     <string name="app_updated_text">Zum Öffnen tippen</string>
 
     <!-- The Subscribe button (player and channel page). Short: shares a row with the bell key. -->
@@ -47,9 +47,9 @@
     <string name="app_bell_off_message_unnamed">Benachrichtigungen für diesen Kanal aus</string>
     <string name="app_bell_failed">Die Glocke konnte nicht geändert werden.</string>
     <!-- Notifications were refused when asked (Android 13+). -->
-    <string name="app_bell_allow_notifications">Erlaube Benachrichtigungen von Skipii, um die Glocke zu nutzen.</string>
+    <string name="app_bell_allow_notifications">Erlaube Benachrichtigungen von Su Tube, um die Glocke zu nutzen.</string>
     <!-- Notifications are off in Android's settings; the settings page opens next. -->
-    <string name="app_bell_turn_on_notifications">Aktiviere Benachrichtigungen von Skipii, um die Glocke zu nutzen.</string>
+    <string name="app_bell_turn_on_notifications">Aktiviere Benachrichtigungen von Su Tube, um die Glocke zu nutzen.</string>
 
     <!-- Notification channel for new videos from channels with the bell on (Android Settings › Notifications). -->
     <string name="app_new_videos_channel">Neue Videos</string>
@@ -64,7 +64,7 @@
     <string name="app_error_youtube_returned">YouTube hat mit %1$s geantwortet</string>
     <!-- The live activity's notification channel, and its skip buttons. %1$s = seconds ("10"). -->
     <string name="app_live_channel">Wiedergabe im Hintergrund</string>
-    <string name="app_live_channel_description">Wiedergabesteuerung, während Skipii nicht auf dem Bildschirm ist</string>
+    <string name="app_live_channel_description">Wiedergabesteuerung, während Su Tube nicht auf dem Bildschirm ist</string>
     <string name="app_live_back">−%1$s s</string>
     <string name="app_live_forward">+%1$s s</string>
 </resources>

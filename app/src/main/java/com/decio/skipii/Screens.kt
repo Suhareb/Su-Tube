@@ -118,7 +118,7 @@ fun HomeScreen(
     LaunchedEffect(signedIn) { if (signedIn) lib.home.ensureLoaded() }
     CollapsingHeaderLayout(
         resetKey = scrollToTop to lib.home.generation,
-        header = { ScreenHeader(title = "Skipii", brandMark = true) { UpdateAction(); AccountAction(onAccount) } },
+        header = { ScreenHeader(title = "Su Tube", brandMark = true) { UpdateAction(); AccountAction(onAccount) } },
     ) { top ->
         if (signedIn) {
             val home = lib.home

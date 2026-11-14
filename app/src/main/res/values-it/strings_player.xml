@@ -52,7 +52,7 @@
     <string name="player_error_bot_check">YouTube chiede di confermare che non sei un bot.</string>
     <string name="player_error_bot_check_hint">Attivare e disattivare la modalità aereo di solito risolve.</string>
     <string name="player_error_private">Questo video è privato.</string>
-    <string name="player_error_members_only">Questo video è riservato agli abbonati al canale. Skipii non può ancora riprodurre questi video.</string>
+    <string name="player_error_members_only">Questo video è riservato agli abbonati al canale. Su Tube non può ancora riprodurre questi video.</string>
     <string name="player_error_unavailable">Questo video non è disponibile.</string>
     <string name="player_error_rate_limited">YouTube sta limitando le richieste in questo momento. Riprova tra un minuto.</string>
     <string name="player_error_offline">Impossibile raggiungere YouTube. Controlla la connessione.</string>

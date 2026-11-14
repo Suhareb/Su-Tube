@@ -53,7 +53,7 @@
     <string name="bar_transcript">ट्रांसक्रिप्ट</string>
 
     <!-- Message when the phone's settings don't allow picture-in-picture for the app. -->
-    <string name="bar_pip_off">सेटिंग में Skipii के लिए पिक्चर में पिक्चर बंद है.</string>
+    <string name="bar_pip_off">सेटिंग में Su Tube के लिए पिक्चर में पिक्चर बंद है.</string>
 
     <!-- Pill above the scrub preview: let go here to not jump. Short. -->
     <string name="bar_cancel">रद्द करें</string>

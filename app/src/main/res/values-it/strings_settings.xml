@@ -30,7 +30,7 @@
         <item quantity="other">%1$s canali con la campanella attiva</item>
     </plurals>
     <string name="settings_bells_none">Ancora nessuna campanella attiva</string>
-    <string name="settings_bells_empty">Attiva la campanella sul pulsante Iscriviti di un canale e Skipii ti avvisa di ogni suo nuovo video.</string>
+    <string name="settings_bells_empty">Attiva la campanella sul pulsante Iscriviti di un canale e Su Tube ti avvisa di ogni suo nuovo video.</string>
     <string name="settings_bell_line">Ogni nuovo video</string>
     <string name="settings_system_notifications">Impostazioni di notifica di Android</string>
     <string name="settings_system_notifications_line">Suono, vibrazione, Non disturbare</string>
@@ -44,7 +44,7 @@
     <string name="settings_source_line">Segnala un problema o chiedi una funzione</string>
     <string name="settings_crash_title">Rapporto sugli arresti</string>
     <string name="settings_crash_saved">Salvato dall\'ultimo arresto anomalo. Condividilo e incollalo in una issue su GitHub</string>
-    <string name="settings_crash_none">Nessun arresto salvato. Condivide come Android ha chiuso Skipii l\'ultima volta, per una issue su GitHub</string>
+    <string name="settings_crash_none">Nessun arresto salvato. Condivide come Android ha chiuso Su Tube l\'ultima volta, per una issue su GitHub</string>
     <string name="settings_crash_tile">Rapporto sugli arresti salvato</string>
     <string name="settings_crash_share">Condividi il rapporto sugli arresti</string>
     <string name="settings_made_by">Creato da %1$s</string>
@@ -67,11 +67,11 @@
     <string name="settings_auto_pip_line">Tornando alla schermata Home durante un video, continua in una piccola finestra</string>
     <!-- Settings › Playback: playback controls as a live activity (Android's Live Updates) while the app is off screen. -->
     <string name="settings_live_title">Attività dal vivo</string>
-    <string name="settings_live_line">Uscendo da Skipii mentre un video è in riproduzione, i comandi restano nella barra di stato e nella schermata di blocco</string>
+    <string name="settings_live_line">Uscendo da Su Tube mentre un video è in riproduzione, i comandi restano nella barra di stato e nella schermata di blocco</string>
     <string name="settings_live_needs">Richiede Android 16 QPR1 o versioni successive</string>
     <string name="settings_live_refused">Questo telefono la mostra solo come notifica normale, quindi restano solo i controlli multimediali</string>
     <string name="settings_live_allow_title">Consenti aggiornamenti dal vivo</string>
-    <string name="settings_live_allow_line">Gli aggiornamenti dal vivo sono disattivati per Skipii nelle impostazioni di Android</string>
+    <string name="settings_live_allow_line">Gli aggiornamenti dal vivo sono disattivati per Su Tube nelle impostazioni di Android</string>
     <!-- Only for Settings' search: other words people use for it. -->
     <string name="settings_live_words">Aggiornamento dal vivo, Now Bar, barra di stato, schermata di blocco</string>
     <string name="settings_swipe_brightness_title">Scorri per regolare la luminosità</string>

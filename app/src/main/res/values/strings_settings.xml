@@ -40,7 +40,7 @@
         <item quantity="other">%1$s channels with the bell on</item>
     </plurals>
     <string name="settings_bells_none">No bells on yet</string>
-    <string name="settings_bells_empty">Ring the bell on a channel\'s Subscribe button and Skipii tells you about each of its new videos.</string>
+    <string name="settings_bells_empty">Ring the bell on a channel\'s Subscribe button and Su Tube tells you about each of its new videos.</string>
     <string name="settings_bell_line">Every new video</string>
     <string name="settings_system_notifications">Android notification settings</string>
     <string name="settings_system_notifications_line">Sound, vibration, Do Not Disturb</string>
@@ -57,7 +57,7 @@
     <!-- Settings › About: the crash report (GitHub #55), shared to paste into an issue. -->
     <string name="settings_crash_title">Crash report</string>
     <string name="settings_crash_saved">Saved from the last crash. Share it and paste it into a GitHub issue</string>
-    <string name="settings_crash_none">No crash saved. Shares how Android last closed Skipii, for a GitHub issue</string>
+    <string name="settings_crash_none">No crash saved. Shares how Android last closed Su Tube, for a GitHub issue</string>
     <string name="settings_crash_tile">Crash report saved</string>
     <string name="settings_crash_share">Share crash report</string>
     <!-- The developer card, last on the Settings page; %1$s = the handle (@y7esdii). -->
@@ -81,11 +81,11 @@
     <string name="settings_auto_pip_line">Going home while a video plays keeps it playing in a small window</string>
     <!-- Settings › Playback: playback controls as a live activity (Android's Live Updates) while the app is off screen. -->
     <string name="settings_live_title">Live activity</string>
-    <string name="settings_live_line">Leaving Skipii while a video plays puts its controls in the status bar and on the lock screen</string>
+    <string name="settings_live_line">Leaving Su Tube while a video plays puts its controls in the status bar and on the lock screen</string>
     <string name="settings_live_needs">Needs Android 16 QPR1 or later</string>
     <string name="settings_live_refused">This phone shows it only as a normal notification, so the media controls stay on their own</string>
     <string name="settings_live_allow_title">Allow Live updates</string>
-    <string name="settings_live_allow_line">Live updates are off for Skipii in Android\'s settings</string>
+    <string name="settings_live_allow_line">Live updates are off for Su Tube in Android\'s settings</string>
     <!-- Only for Settings' search: other words people use for it. -->
     <string name="settings_live_words">Live update, Now Bar, status bar chip, lock screen</string>
     <string name="settings_swipe_brightness_title">Swipe to adjust brightness</string>

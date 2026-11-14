@@ -21,7 +21,7 @@
     <string name="video_selected">Seleccionado</string>
 
     <!-- Message shown when picture-in-picture can't start because the user turned it off in Android's settings. -->
-    <string name="video_pip_off">Pantalla en pantalla está desactivado para Skipii en Ajustes.</string>
+    <string name="video_pip_off">Pantalla en pantalla está desactivado para Su Tube en Ajustes.</string>
 
     <!-- Quality: automatic. Also the start of the quality pill on the video ("Auto · 720p"): small pill, keep short. -->
     <string name="video_quality_auto">Auto</string>

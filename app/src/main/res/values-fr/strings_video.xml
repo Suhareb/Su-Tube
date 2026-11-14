@@ -21,7 +21,7 @@
     <string name="video_selected">Sélectionné</string>
 
     <!-- Message shown when picture-in-picture can't start because the user turned it off in Android's settings. -->
-    <string name="video_pip_off">Le mode Picture-in-picture est désactivé pour Skipii dans les paramètres.</string>
+    <string name="video_pip_off">Le mode Picture-in-picture est désactivé pour Su Tube dans les paramètres.</string>
 
     <!-- Quality: automatic. Also the start of the quality pill on the video ("Auto · 720p"): small pill, keep short. -->
     <string name="video_quality_auto">Auto</string>

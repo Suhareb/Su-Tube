@@ -28,7 +28,7 @@
         <item quantity="other">%1$s kênh đã bật chuông</item>
     </plurals>
     <string name="settings_bells_none">Chưa bật chuông kênh nào</string>
-    <string name="settings_bells_empty">Bật chuông trên nút Đăng ký của một kênh, Skipii sẽ báo cho bạn mỗi video mới của kênh đó.</string>
+    <string name="settings_bells_empty">Bật chuông trên nút Đăng ký của một kênh, Su Tube sẽ báo cho bạn mỗi video mới của kênh đó.</string>
     <string name="settings_bell_line">Mọi video mới</string>
     <string name="settings_system_notifications">Cài đặt thông báo của Android</string>
     <string name="settings_system_notifications_line">Âm thanh, rung, Không làm phiền</string>
@@ -42,7 +42,7 @@
     <string name="settings_source_line">Báo lỗi hoặc đề xuất tính năng</string>
     <string name="settings_crash_title">Báo cáo sự cố</string>
     <string name="settings_crash_saved">Đã lưu từ lần gặp sự cố gần nhất. Hãy chia sẻ và dán vào một issue trên GitHub</string>
-    <string name="settings_crash_none">Chưa lưu sự cố nào. Chia sẻ cách Android đóng Skipii lần gần nhất, để gửi issue trên GitHub</string>
+    <string name="settings_crash_none">Chưa lưu sự cố nào. Chia sẻ cách Android đóng Su Tube lần gần nhất, để gửi issue trên GitHub</string>
     <string name="settings_crash_tile">Đã lưu báo cáo sự cố</string>
     <string name="settings_crash_share">Chia sẻ báo cáo sự cố</string>
     <string name="settings_made_by">Tạo bởi %1$s</string>
@@ -65,11 +65,11 @@
     <string name="settings_auto_pip_line">Về màn hình chính khi video đang phát thì video tiếp tục trong một cửa sổ nhỏ</string>
     <!-- Settings › Playback: playback controls as a live activity (Android's Live Updates) while the app is off screen. -->
     <string name="settings_live_title">Hoạt động trực tiếp</string>
-    <string name="settings_live_line">Rời Skipii khi video đang phát sẽ đưa các nút điều khiển lên thanh trạng thái và màn hình khóa</string>
+    <string name="settings_live_line">Rời Su Tube khi video đang phát sẽ đưa các nút điều khiển lên thanh trạng thái và màn hình khóa</string>
     <string name="settings_live_needs">Cần Android 16 QPR1 trở lên</string>
     <string name="settings_live_refused">Điện thoại này chỉ hiện nó như thông báo thường, nên chỉ còn các nút điều khiển phương tiện</string>
     <string name="settings_live_allow_title">Cho phép cập nhật trực tiếp</string>
-    <string name="settings_live_allow_line">Cập nhật trực tiếp đang tắt cho Skipii trong cài đặt Android</string>
+    <string name="settings_live_allow_line">Cập nhật trực tiếp đang tắt cho Su Tube trong cài đặt Android</string>
     <!-- Only for Settings' search: other words people use for it. -->
     <string name="settings_live_words">Cập nhật trực tiếp, Now Bar, thanh trạng thái, màn hình khóa</string>
     <string name="settings_swipe_brightness_title">Vuốt để chỉnh độ sáng</string>

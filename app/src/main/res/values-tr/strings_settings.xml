@@ -29,7 +29,7 @@
         <item quantity="other">Zili açık %1$s kanal</item>
     </plurals>
     <string name="settings_bells_none">Henüz açık zil yok</string>
-    <string name="settings_bells_empty">Bir kanalın Abone ol düğmesindeki zili aç, Skipii her yeni videosunu sana haber versin.</string>
+    <string name="settings_bells_empty">Bir kanalın Abone ol düğmesindeki zili aç, Su Tube her yeni videosunu sana haber versin.</string>
     <string name="settings_bell_line">Her yeni video</string>
     <string name="settings_system_notifications">Android bildirim ayarları</string>
     <string name="settings_system_notifications_line">Ses, titreşim, Rahatsız Etmeyin</string>
@@ -43,7 +43,7 @@
     <string name="settings_source_line">Bir sorun bildir ya da özellik iste</string>
     <string name="settings_crash_title">Çökme raporu</string>
     <string name="settings_crash_saved">Son çökmeden kaydedildi. Paylaşın ve bir GitHub issue\'suna yapıştırın</string>
-    <string name="settings_crash_none">Kayıtlı çökme yok. Android\'in Skipii\'yi son kez nasıl kapattığını paylaşır, bir GitHub issue\'su için</string>
+    <string name="settings_crash_none">Kayıtlı çökme yok. Android\'in Su Tube\'yi son kez nasıl kapattığını paylaşır, bir GitHub issue\'su için</string>
     <string name="settings_crash_tile">Çökme raporu kaydedildi</string>
     <string name="settings_crash_share">Çökme raporunu paylaş</string>
     <string name="settings_made_by">%1$s tarafından yapıldı</string>
@@ -66,11 +66,11 @@
     <string name="settings_auto_pip_line">Video oynarken ana ekrana dönersen küçük bir pencerede oynamaya devam eder</string>
     <!-- Settings › Playback: playback controls as a live activity (Android's Live Updates) while the app is off screen. -->
     <string name="settings_live_title">Canlı etkinlik</string>
-    <string name="settings_live_line">Video oynarken Skipii\'den çıkınca kontroller durum çubuğunda ve kilit ekranında kalır</string>
+    <string name="settings_live_line">Video oynarken Su Tube\'den çıkınca kontroller durum çubuğunda ve kilit ekranında kalır</string>
     <string name="settings_live_needs">Android 16 QPR1 veya üstü gerekir</string>
     <string name="settings_live_refused">Bu telefon onu yalnızca normal bir bildirim olarak gösteriyor, bu yüzden yalnızca medya kontrolleri kalır</string>
     <string name="settings_live_allow_title">Canlı güncellemelere izin ver</string>
-    <string name="settings_live_allow_line">Canlı güncellemeler Android ayarlarında Skipii için kapalı</string>
+    <string name="settings_live_allow_line">Canlı güncellemeler Android ayarlarında Su Tube için kapalı</string>
     <!-- Only for Settings' search: other words people use for it. -->
     <string name="settings_live_words">Canlı güncelleme, Now Bar, durum çubuğu, kilit ekranı</string>
     <string name="settings_swipe_brightness_title">Parlaklık için kaydır</string>

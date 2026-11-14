@@ -53,7 +53,7 @@
     <string name="bar_transcript">Transcripción</string>
 
     <!-- Message when the phone's settings don't allow picture-in-picture for the app. -->
-    <string name="bar_pip_off">Pantalla en pantalla está desactivado para Skipii en Ajustes.</string>
+    <string name="bar_pip_off">Pantalla en pantalla está desactivado para Su Tube en Ajustes.</string>
 
     <!-- Pill above the scrub preview: let go here to not jump. Short. -->
     <string name="bar_cancel">Cancelar</string>

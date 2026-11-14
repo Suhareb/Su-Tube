@@ -53,7 +53,7 @@
     <string name="bar_transcript">نص الفيديو</string>
 
     <!-- Message when the phone's settings don't allow picture-in-picture for the app. -->
-    <string name="bar_pip_off">ميزة نافذة ضمن النافذة غير مفعّلة لتطبيق Skipii في الإعدادات.</string>
+    <string name="bar_pip_off">ميزة نافذة ضمن النافذة غير مفعّلة لتطبيق Su Tube في الإعدادات.</string>
 
     <!-- Pill above the scrub preview: let go here to not jump. Short. -->
     <string name="bar_cancel">إلغاء</string>

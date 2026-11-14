@@ -28,7 +28,7 @@
         <item quantity="other">%1$s channel dengan lonceng aktif</item>
     </plurals>
     <string name="settings_bells_none">Belum ada lonceng yang aktif</string>
-    <string name="settings_bells_empty">Aktifkan lonceng di tombol Subscribe sebuah channel, dan Skipii akan memberi tahu setiap video barunya.</string>
+    <string name="settings_bells_empty">Aktifkan lonceng di tombol Subscribe sebuah channel, dan Su Tube akan memberi tahu setiap video barunya.</string>
     <string name="settings_bell_line">Setiap video baru</string>
     <string name="settings_system_notifications">Setelan notifikasi Android</string>
     <string name="settings_system_notifications_line">Suara, getar, Jangan Ganggu</string>
@@ -42,7 +42,7 @@
     <string name="settings_source_line">Laporkan masalah atau minta fitur</string>
     <string name="settings_crash_title">Laporan error</string>
     <string name="settings_crash_saved">Disimpan dari error terakhir. Bagikan lalu tempel di issue GitHub</string>
-    <string name="settings_crash_none">Tidak ada error tersimpan. Membagikan cara Android terakhir menutup Skipii, untuk issue GitHub</string>
+    <string name="settings_crash_none">Tidak ada error tersimpan. Membagikan cara Android terakhir menutup Su Tube, untuk issue GitHub</string>
     <string name="settings_crash_tile">Laporan error tersimpan</string>
     <string name="settings_crash_share">Bagikan laporan error</string>
     <string name="settings_made_by">Dibuat oleh %1$s</string>
@@ -65,11 +65,11 @@
     <string name="settings_auto_pip_line">Ke layar utama saat video diputar membuatnya tetap jalan di jendela kecil</string>
     <!-- Settings › Playback: playback controls as a live activity (Android's Live Updates) while the app is off screen. -->
     <string name="settings_live_title">Aktivitas langsung</string>
-    <string name="settings_live_line">Keluar dari Skipii saat video diputar menaruh kontrolnya di status bar dan layar kunci</string>
+    <string name="settings_live_line">Keluar dari Su Tube saat video diputar menaruh kontrolnya di status bar dan layar kunci</string>
     <string name="settings_live_needs">Perlu Android 16 QPR1 atau lebih baru</string>
     <string name="settings_live_refused">Ponsel ini hanya menampilkannya sebagai notifikasi biasa, jadi hanya kontrol media yang tersisa</string>
     <string name="settings_live_allow_title">Izinkan Live Update</string>
-    <string name="settings_live_allow_line">Live Update dinonaktifkan untuk Skipii di setelan Android</string>
+    <string name="settings_live_allow_line">Live Update dinonaktifkan untuk Su Tube di setelan Android</string>
     <!-- Only for Settings' search: other words people use for it. -->
     <string name="settings_live_words">Live Update, Now Bar, status bar, layar kunci</string>
     <string name="settings_swipe_brightness_title">Geser untuk mengatur kecerahan</string>

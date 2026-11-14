@@ -52,7 +52,7 @@
     <string name="player_error_bot_check">YouTube पुष्टि करना चाहता है कि आप बॉट नहीं हैं.</string>
     <string name="player_error_bot_check_hint">हवाई जहाज़ मोड चालू करके फिर बंद करने से आमतौर पर यह ठीक हो जाता है.</string>
     <string name="player_error_private">यह वीडियो निजी है.</string>
-    <string name="player_error_members_only">यह वीडियो सिर्फ़ सदस्यों के लिए है. Skipii अभी ऐसे वीडियो नहीं चला सकता.</string>
+    <string name="player_error_members_only">यह वीडियो सिर्फ़ सदस्यों के लिए है. Su Tube अभी ऐसे वीडियो नहीं चला सकता.</string>
     <string name="player_error_unavailable">यह वीडियो उपलब्ध नहीं है.</string>
     <string name="player_error_rate_limited">YouTube अभी अनुरोधों को सीमित कर रहा है. एक मिनट बाद फिर से कोशिश करें.</string>
     <string name="player_error_offline">YouTube से कनेक्ट नहीं हो सका. अपना कनेक्शन देखें.</string>

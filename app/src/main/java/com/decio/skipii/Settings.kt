@@ -800,12 +800,9 @@ private val MoodiiDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 
 // ── Developer card (Moodii's, last on the front page) ─────────────────────────
 
-private const val InstagramUrl = "https://www.instagram.com/y7esdii?igsh=MWdydmU1a216NDlydA=="
-private const val ThreadsUrl = "https://www.threads.com/@y7esdii"
-private const val XUrl = "https://x.com/y7esdii"
-private const val DeveloperEmail = "decioarruda7c@gmail.com"
+private const val DeveloperEmail = "tyrahbanks8@gmail.com"
 /** A filterable keyword in the subject, keyed to this app. */
-private const val EmailSubject = "Skipii feedback"
+private const val EmailSubject = "Su Tube feedback"
 
 @Composable
 private fun DeveloperCard(player: PlayerState, modifier: Modifier = Modifier) {
@@ -820,15 +817,9 @@ private fun DeveloperCard(player: PlayerState, modifier: Modifier = Modifier) {
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(stringResource(R.string.settings_made_by, "@y7esdii"), fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
+        Text(stringResource(R.string.settings_made_by, "Suhareb"), fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(2.dp))
         Text(stringResource(R.string.settings_say_hi), color = c.onSurfaceVariant, fontSize = 12.5.sp, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            IconDisc(rememberBrandIcon("Instagram", InstagramPath), "Instagram") { context.openOrSay(Intent(Intent.ACTION_VIEW, Uri.parse(InstagramUrl)), onMessage) }
-            IconDisc(rememberBrandIcon("Threads", ThreadsPath), "Threads") { context.openOrSay(Intent(Intent.ACTION_VIEW, Uri.parse(ThreadsUrl)), onMessage) }
-            IconDisc(rememberBrandIcon("X", XPath), "X") { context.openOrSay(Intent(Intent.ACTION_VIEW, Uri.parse(XUrl)), onMessage) }
-        }
         Spacer(Modifier.height(16.dp))
         Row(
             Modifier
@@ -1731,7 +1722,7 @@ private fun AboutPage(player: PlayerState) {
                 scope.launch {
                     val text = withContext(Dispatchers.IO) { CrashLog.report(context) }
                     val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_SUBJECT, "Skipii crash report")
+                        .putExtra(Intent.EXTRA_SUBJECT, "Su Tube crash report")
                         .putExtra(Intent.EXTRA_TEXT, text)
                     context.openOrSay(Intent.createChooser(send, shareTitle)) { player.actionMessage = it }
                     CrashLog.markShared()

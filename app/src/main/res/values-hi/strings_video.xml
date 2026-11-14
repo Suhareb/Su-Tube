@@ -22,7 +22,7 @@
     <string name="video_selected">चुना गया</string>
 
     <!-- Message shown when picture-in-picture can't start because the user turned it off in Android's settings. -->
-    <string name="video_pip_off">सेटिंग में Skipii के लिए पिक्चर में पिक्चर बंद है.</string>
+    <string name="video_pip_off">सेटिंग में Su Tube के लिए पिक्चर में पिक्चर बंद है.</string>
 
     <!-- Quality: automatic. Also the start of the quality pill on the video ("Auto · 720p"): small pill, keep short. -->
     <string name="video_quality_auto">ऑटो</string>

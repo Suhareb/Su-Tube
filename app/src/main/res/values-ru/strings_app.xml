@@ -31,7 +31,7 @@
     <!-- Notification channel name (Android Settings › Notifications). -->
     <string name="app_update_channel">Обновления приложения</string>
     <!-- Notification after the app updated itself, %1$s is the version ("0.5.79"). -->
-    <string name="app_updated_title">Skipii обновлено до версии %1$s</string>
+    <string name="app_updated_title">Su Tube обновлено до версии %1$s</string>
     <string name="app_updated_text">Нажмите, чтобы открыть</string>
 
     <!-- The Subscribe button (player and channel page). Short: shares a row with the bell key. -->
@@ -48,9 +48,9 @@
     <string name="app_bell_off_message_unnamed">Уведомления от этого канала отключены</string>
     <string name="app_bell_failed">Не удалось изменить настройку колокольчика.</string>
     <!-- Notifications were refused when asked (Android 13+). -->
-    <string name="app_bell_allow_notifications">Разрешите Skipii отправлять уведомления, чтобы пользоваться колокольчиком.</string>
+    <string name="app_bell_allow_notifications">Разрешите Su Tube отправлять уведомления, чтобы пользоваться колокольчиком.</string>
     <!-- Notifications are off in Android's settings; the settings page opens next. -->
-    <string name="app_bell_turn_on_notifications">Включите уведомления Skipii, чтобы пользоваться колокольчиком.</string>
+    <string name="app_bell_turn_on_notifications">Включите уведомления Su Tube, чтобы пользоваться колокольчиком.</string>
 
     <!-- Notification channel for new videos from channels with the bell on (Android Settings › Notifications). -->
     <string name="app_new_videos_channel">Новые видео</string>
@@ -65,7 +65,7 @@
     <string name="app_error_youtube_returned">YouTube вернул ошибку %1$s</string>
     <!-- The live activity's notification channel, and its skip buttons. %1$s = seconds ("10"). -->
     <string name="app_live_channel">Воспроизведение в фоне</string>
-    <string name="app_live_channel_description">Управление воспроизведением, пока Skipii не на экране</string>
+    <string name="app_live_channel_description">Управление воспроизведением, пока Su Tube не на экране</string>
     <string name="app_live_back">−%1$s с</string>
     <string name="app_live_forward">+%1$s с</string>
 </resources>

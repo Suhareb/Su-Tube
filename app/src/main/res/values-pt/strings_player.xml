@@ -52,7 +52,7 @@
     <string name="player_error_bot_check">O YouTube está pedindo para confirmar que você não é um robô.</string>
     <string name="player_error_bot_check_hint">Ativar e desativar o modo avião geralmente resolve.</string>
     <string name="player_error_private">Este vídeo é privado.</string>
-    <string name="player_error_members_only">Este vídeo é exclusivo para membros. O Skipii ainda não consegue reproduzir vídeos exclusivos para membros.</string>
+    <string name="player_error_members_only">Este vídeo é exclusivo para membros. O Su Tube ainda não consegue reproduzir vídeos exclusivos para membros.</string>
     <string name="player_error_unavailable">Este vídeo não está disponível.</string>
     <string name="player_error_rate_limited">O YouTube está limitando as solicitações agora. Tente de novo em um minuto.</string>
     <string name="player_error_offline">Não foi possível acessar o YouTube. Verifique sua conexão.</string>

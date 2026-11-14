@@ -56,7 +56,7 @@
     <string name="player_error_bot_check">يطلب YouTube تأكيد أنك لست روبوتًا.</string>
     <string name="player_error_bot_check_hint">تشغيل وضع الطيران ثم إيقافه يحل المشكلة عادةً.</string>
     <string name="player_error_private">هذا الفيديو خاص.</string>
-    <string name="player_error_members_only">هذا الفيديو مخصّص للأعضاء فقط. لا يمكن لـ Skipii تشغيل فيديوهات الأعضاء بعد.</string>
+    <string name="player_error_members_only">هذا الفيديو مخصّص للأعضاء فقط. لا يمكن لـ Su Tube تشغيل فيديوهات الأعضاء بعد.</string>
     <string name="player_error_unavailable">هذا الفيديو غير متاح.</string>
     <string name="player_error_rate_limited">يحدّ YouTube من عدد الطلبات الآن. حاول مرة أخرى بعد دقيقة.</string>
     <string name="player_error_offline">تعذّر الوصول إلى YouTube. تحقّق من اتصالك.</string>

@@ -276,8 +276,9 @@ fun PlayerScreen(
                             color = c.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                         )
                         if (descriptionOpen && details != null) {
+                            val descriptionContext = LocalContext.current
                             Text(
-                                details.description,
+                                linkedDescription(details.description, details.descriptionLinks, c.primary, descriptionContext),
                                 modifier = Modifier.padding(top = 10.dp),
                                 color = c.onSurfaceVariant,
                                 fontSize = 14.sp,
@@ -927,4 +928,54 @@ private fun MorphingMiniDetails(state: PlayerState, morph: PlayerMorph) {
             .graphicsLayer { alpha = 1f - ramp(morph.progress.value, 0f, 0.3f) },
         verticalAlignment = Alignment.CenterVertically,
     ) { MiniDetails(state, interactive = false) }
+}
+
+
+private val BareUrl = Regex("""https?://[^\s<>"')\]]+""")
+
+/** The description with every link tappable: the real targets from the page, plus any bare address in the text. */
+private fun linkedDescription(
+    text: String,
+    links: List<DescriptionLink>,
+    tint: androidx.compose.ui.graphics.Color,
+    context: android.content.Context,
+): androidx.compose.ui.text.AnnotatedString {
+    val all = ArrayList<DescriptionLink>(links)
+    for (m in BareUrl.findAll(text)) {
+        val start = m.range.first
+        var end = m.range.last + 1
+        while (end > start && text[end - 1] in ".,;:!?") end--
+        if (end > start && links.none { start < it.end && end > it.start }) all += DescriptionLink(start, end, text.substring(start, end))
+    }
+    val style = androidx.compose.ui.text.TextLinkStyles(
+        androidx.compose.ui.text.SpanStyle(color = tint, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+    )
+    return androidx.compose.ui.text.buildAnnotatedString {
+        append(text)
+        for (link in all) {
+            val start = link.start.coerceIn(0, text.length)
+            val end = link.end.coerceIn(start, text.length)
+            if (end > start) {
+                addLink(
+                    androidx.compose.ui.text.LinkAnnotation.Clickable(
+                        link.url,
+                        style,
+                        androidx.compose.ui.text.LinkInteractionListener { openDescriptionLink(context, link.url) },
+                    ),
+                    start, end,
+                )
+            }
+        }
+    }
+}
+
+/** Hands the link to whatever app handles it (browser, YouTube, mail…); nothing happens if none does. */
+private fun openDescriptionLink(context: android.content.Context, url: String) {
+    try {
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    } catch (_: android.content.ActivityNotFoundException) {
+    }
 }

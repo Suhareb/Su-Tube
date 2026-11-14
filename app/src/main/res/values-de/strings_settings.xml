@@ -29,7 +29,7 @@
         <item quantity="other">%1$s Kanäle mit aktivierter Glocke</item>
     </plurals>
     <string name="settings_bells_none">Noch keine Glocke aktiviert</string>
-    <string name="settings_bells_empty">Aktiviere die Glocke am Abonnieren-Button eines Kanals, und Skipii meldet dir jedes neue Video.</string>
+    <string name="settings_bells_empty">Aktiviere die Glocke am Abonnieren-Button eines Kanals, und Su Tube meldet dir jedes neue Video.</string>
     <string name="settings_bell_line">Jedes neue Video</string>
     <string name="settings_system_notifications">Android-Benachrichtigungseinstellungen</string>
     <string name="settings_system_notifications_line">Ton, Vibration, Bitte nicht stören</string>
@@ -43,7 +43,7 @@
     <string name="settings_source_line">Ein Problem melden oder eine Funktion wünschen</string>
     <string name="settings_crash_title">Absturzbericht</string>
     <string name="settings_crash_saved">Vom letzten Absturz gespeichert. Teile ihn und füge ihn in ein GitHub-Issue ein</string>
-    <string name="settings_crash_none">Kein Absturz gespeichert. Teilt, wie Android Skipii zuletzt beendet hat, für ein GitHub-Issue</string>
+    <string name="settings_crash_none">Kein Absturz gespeichert. Teilt, wie Android Su Tube zuletzt beendet hat, für ein GitHub-Issue</string>
     <string name="settings_crash_tile">Absturzbericht gespeichert</string>
     <string name="settings_crash_share">Absturzbericht teilen</string>
     <string name="settings_made_by">Gemacht von %1$s</string>
@@ -66,11 +66,11 @@
     <string name="settings_auto_pip_line">Wechselst du beim Abspielen zum Startbildschirm, läuft das Video in einem kleinen Fenster weiter</string>
     <!-- Settings › Playback: playback controls as a live activity (Android's Live Updates) while the app is off screen. -->
     <string name="settings_live_title">Live-Aktivität</string>
-    <string name="settings_live_line">Verlässt du Skipii, während ein Video läuft, liegen die Steuerelemente in der Statusleiste und auf dem Sperrbildschirm</string>
+    <string name="settings_live_line">Verlässt du Su Tube, während ein Video läuft, liegen die Steuerelemente in der Statusleiste und auf dem Sperrbildschirm</string>
     <string name="settings_live_needs">Benötigt Android 16 QPR1 oder neuer</string>
     <string name="settings_live_refused">Dieses Handy zeigt sie nur als normale Benachrichtigung, daher bleiben nur die Mediensteuerelemente</string>
     <string name="settings_live_allow_title">Live-Updates erlauben</string>
-    <string name="settings_live_allow_line">Live-Updates sind für Skipii in den Android-Einstellungen aus</string>
+    <string name="settings_live_allow_line">Live-Updates sind für Su Tube in den Android-Einstellungen aus</string>
     <!-- Only for Settings' search: other words people use for it. -->
     <string name="settings_live_words">Live-Update, Now Bar, Statusleiste, Sperrbildschirm</string>
     <string name="settings_swipe_brightness_title">Wischen für Helligkeit</string>

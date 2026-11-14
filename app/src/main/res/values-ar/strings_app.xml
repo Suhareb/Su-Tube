@@ -30,7 +30,7 @@
     <!-- Notification channel name (Android Settings › Notifications). -->
     <string name="app_update_channel">تحديثات التطبيق</string>
     <!-- Notification after the app updated itself, %1$s is the version ("0.5.79"). -->
-    <string name="app_updated_title">تم تحديث Skipii إلى الإصدار %1$s</string>
+    <string name="app_updated_title">تم تحديث Su Tube إلى الإصدار %1$s</string>
     <string name="app_updated_text">انقر للفتح</string>
 
     <!-- The Subscribe button (player and channel page). Short: shares a row with the bell key. -->
@@ -47,9 +47,9 @@
     <string name="app_bell_off_message_unnamed">تم إيقاف الإشعارات من هذه القناة</string>
     <string name="app_bell_failed">تعذّر تغيير الجرس.</string>
     <!-- Notifications were refused when asked (Android 13+). -->
-    <string name="app_bell_allow_notifications">اسمح بإشعارات Skipii لاستخدام الجرس.</string>
+    <string name="app_bell_allow_notifications">اسمح بإشعارات Su Tube لاستخدام الجرس.</string>
     <!-- Notifications are off in Android's settings; the settings page opens next. -->
-    <string name="app_bell_turn_on_notifications">فعِّل إشعارات Skipii لاستخدام الجرس.</string>
+    <string name="app_bell_turn_on_notifications">فعِّل إشعارات Su Tube لاستخدام الجرس.</string>
 
     <!-- Notification channel for new videos from channels with the bell on (Android Settings › Notifications). -->
     <string name="app_new_videos_channel">فيديوهات جديدة</string>
@@ -64,7 +64,7 @@
     <string name="app_error_youtube_returned">ردّ YouTube بالرمز %1$s</string>
     <!-- The live activity's notification channel, and its skip buttons. %1$s = seconds ("10"). -->
     <string name="app_live_channel">التشغيل في الخلفية</string>
-    <string name="app_live_channel_description">عناصر التحكم في التشغيل عندما لا يكون Skipii على الشاشة</string>
+    <string name="app_live_channel_description">عناصر التحكم في التشغيل عندما لا يكون Su Tube على الشاشة</string>
     <string name="app_live_back">−%1$s ث</string>
     <string name="app_live_forward">+%1$s ث</string>
 </resources>

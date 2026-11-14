@@ -28,7 +28,7 @@
         <item quantity="other">ベルがオンのチャンネル %1$s 件</item>
     </plurals>
     <string name="settings_bells_none">オンのベルはまだありません</string>
-    <string name="settings_bells_empty">チャンネルの登録ボタンでベルをオンにすると、新しい動画が出るたびに Skipii がお知らせします。</string>
+    <string name="settings_bells_empty">チャンネルの登録ボタンでベルをオンにすると、新しい動画が出るたびに Su Tube がお知らせします。</string>
     <string name="settings_bell_line">新しい動画すべて</string>
     <string name="settings_system_notifications">Android の通知設定</string>
     <string name="settings_system_notifications_line">音、バイブレーション、サイレント モード</string>
@@ -42,7 +42,7 @@
     <string name="settings_source_line">問題の報告や機能のリクエスト</string>
     <string name="settings_crash_title">クラッシュレポート</string>
     <string name="settings_crash_saved">前回のクラッシュから保存されました。共有して GitHub の issue に貼り付けてください</string>
-    <string name="settings_crash_none">保存されたクラッシュはありません。Android が前回 Skipii を終了した理由を共有します（GitHub の issue 用）</string>
+    <string name="settings_crash_none">保存されたクラッシュはありません。Android が前回 Su Tube を終了した理由を共有します（GitHub の issue 用）</string>
     <string name="settings_crash_tile">クラッシュレポートを保存しました</string>
     <string name="settings_crash_share">クラッシュレポートを共有</string>
     <string name="settings_made_by">作者: %1$s</string>
@@ -65,11 +65,11 @@
     <string name="settings_auto_pip_line">動画の再生中にホームへ戻ると、小さなウィンドウで再生が続きます</string>
     <!-- Settings › Playback: playback controls as a live activity (Android's Live Updates) while the app is off screen. -->
     <string name="settings_live_title">ライブアクティビティ</string>
-    <string name="settings_live_line">動画の再生中に Skipii を離れると、操作ボタンがステータスバーとロック画面に表示されます</string>
+    <string name="settings_live_line">動画の再生中に Su Tube を離れると、操作ボタンがステータスバーとロック画面に表示されます</string>
     <string name="settings_live_needs">Android 16 QPR1 以降が必要です</string>
     <string name="settings_live_refused">このスマホでは通常の通知としてしか表示されないため、メディア操作だけが残ります</string>
     <string name="settings_live_allow_title">ライブアップデートを許可</string>
-    <string name="settings_live_allow_line">Android の設定で Skipii のライブアップデートがオフになっています</string>
+    <string name="settings_live_allow_line">Android の設定で Su Tube のライブアップデートがオフになっています</string>
     <!-- Only for Settings' search: other words people use for it. -->
     <string name="settings_live_words">ライブアップデート、Now Bar、ステータスバー、ロック画面</string>
     <string name="settings_swipe_brightness_title">スワイプで明るさを調整</string>

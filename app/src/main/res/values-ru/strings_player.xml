@@ -54,7 +54,7 @@
     <string name="player_error_bot_check">YouTube просит подтвердить, что вы не робот.</string>
     <string name="player_error_bot_check_hint">Обычно помогает включить и выключить режим полёта.</string>
     <string name="player_error_private">Это видео с ограниченным доступом.</string>
-    <string name="player_error_members_only">Это видео только для спонсоров канала. Skipii пока не умеет воспроизводить такие видео.</string>
+    <string name="player_error_members_only">Это видео только для спонсоров канала. Su Tube пока не умеет воспроизводить такие видео.</string>
     <string name="player_error_unavailable">Это видео недоступно.</string>
     <string name="player_error_rate_limited">YouTube сейчас ограничивает число запросов. Повторите попытку через минуту.</string>
     <string name="player_error_offline">Не удалось подключиться к YouTube. Проверьте соединение.</string>

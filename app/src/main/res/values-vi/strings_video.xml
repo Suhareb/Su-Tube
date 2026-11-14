@@ -22,7 +22,7 @@
     <string name="video_selected">Đã chọn</string>
 
     <!-- Message shown when picture-in-picture can't start because the user turned it off in Android's settings. -->
-    <string name="video_pip_off">Chế độ hình trong hình đang tắt cho Skipii trong Cài đặt.</string>
+    <string name="video_pip_off">Chế độ hình trong hình đang tắt cho Su Tube trong Cài đặt.</string>
 
     <!-- Quality: automatic. Also the start of the quality pill on the video ("Auto · 720p"): small pill, keep short. -->
     <string name="video_quality_auto">Tự động</string>

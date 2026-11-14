@@ -30,7 +30,7 @@
     <!-- Notification channel name (Android Settings › Notifications). -->
     <string name="app_update_channel">アプリの更新</string>
     <!-- Notification after the app updated itself, %1$s is the version ("0.5.79"). -->
-    <string name="app_updated_title">Skipii を %1$s に更新しました</string>
+    <string name="app_updated_title">Su Tube を %1$s に更新しました</string>
     <string name="app_updated_text">タップして開く</string>
 
     <!-- The Subscribe button (player and channel page). Short: shares a row with the bell key. -->
@@ -47,9 +47,9 @@
     <string name="app_bell_off_message_unnamed">このチャンネルの通知をオフにしました</string>
     <string name="app_bell_failed">通知設定を変更できませんでした。</string>
     <!-- Notifications were refused when asked (Android 13+). -->
-    <string name="app_bell_allow_notifications">ベルを使うには Skipii の通知を許可してください。</string>
+    <string name="app_bell_allow_notifications">ベルを使うには Su Tube の通知を許可してください。</string>
     <!-- Notifications are off in Android's settings; the settings page opens next. -->
-    <string name="app_bell_turn_on_notifications">ベルを使うには Skipii の通知をオンにしてください。</string>
+    <string name="app_bell_turn_on_notifications">ベルを使うには Su Tube の通知をオンにしてください。</string>
 
     <!-- Notification channel for new videos from channels with the bell on (Android Settings › Notifications). -->
     <string name="app_new_videos_channel">新しい動画</string>
@@ -64,7 +64,7 @@
     <string name="app_error_youtube_returned">YouTube からの応答: %1$s</string>
     <!-- The live activity's notification channel, and its skip buttons. %1$s = seconds ("10"). -->
     <string name="app_live_channel">バックグラウンドで再生中</string>
-    <string name="app_live_channel_description">Skipii が画面に出ていないときの再生操作</string>
+    <string name="app_live_channel_description">Su Tube が画面に出ていないときの再生操作</string>
     <string name="app_live_back">−%1$s 秒</string>
     <string name="app_live_forward">+%1$s 秒</string>
 </resources>
