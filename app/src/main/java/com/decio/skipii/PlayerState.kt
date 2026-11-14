@@ -540,8 +540,20 @@ class PlayerState(private val scope: CoroutineScope) {
         val item = current ?: return
         val seconds = positionMs / 1000
         val url = YouTube.watchUrl(item.id) + if (seconds > 0) "&t=${seconds}s" else ""
+        // The YouTube app first; else any app but this one (with YouTube links switched on for
+        // Su Tube, a plain VIEW would come straight back here).
+        val view = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
-            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            context.startActivity(android.content.Intent(view).setPackage("com.google.android.youtube"))
+            return
+        } catch (_: android.content.ActivityNotFoundException) {
+        }
+        try {
+            val chooser = android.content.Intent.createChooser(view, null)
+                .putExtra(android.content.Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(android.content.ComponentName(context, MainActivity::class.java)))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
         } catch (_: android.content.ActivityNotFoundException) {
             actionMessage = str(R.string.settings_no_app)
         }

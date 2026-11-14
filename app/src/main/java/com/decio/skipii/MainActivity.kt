@@ -148,7 +148,7 @@ class MainActivity : ComponentActivity() {
         ) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        NewVideos.takeVideo(intent)?.let { NewVideos.opening = it }
+        (NewVideos.takeVideo(intent) ?: linkedVideo(intent))?.let { NewVideos.opening = it }
         LiveControls.takeOpen(intent)
         setContent { SkipiiTheme { SkipiiApp() } }
     }
@@ -156,7 +156,7 @@ class MainActivity : ComponentActivity() {
     /** A new-video notification tapped while this window is open (singleTop). */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        NewVideos.takeVideo(intent)?.let { NewVideos.opening = it }
+        (NewVideos.takeVideo(intent) ?: linkedVideo(intent))?.let { NewVideos.opening = it }
         LiveControls.takeOpen(intent)
     }
 
@@ -869,3 +869,33 @@ private fun QueueMessage(player: PlayerState, modifier: Modifier) {
 
 /** Moodii's spatial spring (Motion.spatial there): the default for anything that moves in space. */
 private fun <T> MoodiiSpatial() = spring<T>(dampingRatio = 0.86f, stiffness = 650f)
+
+
+private val VideoIdShape = Regex("[A-Za-z0-9_-]{11}")
+
+/**
+ * The video a youtube.com / youtu.be link asked to open (a Short plays as an ordinary video); null
+ * for any other intent. The link is cleared from the intent so a rebuilt window doesn't open it twice.
+ */
+internal fun linkedVideo(intent: Intent?): VideoItem? {
+    if (intent?.action != Intent.ACTION_VIEW) return null
+    val uri = intent.data ?: return null
+    val host = uri.host?.lowercase() ?: return null
+    val segments = uri.pathSegments
+    val raw = when {
+        host == "youtu.be" -> segments.firstOrNull()
+        host == "youtube.com" || host.endsWith(".youtube.com") -> when (segments.firstOrNull()) {
+            "watch" -> uri.getQueryParameter("v")
+            "shorts", "live", "embed" -> segments.getOrNull(1)
+            else -> null
+        }
+        else -> null
+    }
+    val id = raw?.takeIf { VideoIdShape.matches(it) } ?: return null
+    intent.data = null
+    return VideoItem(
+        id = id, title = "", channel = "", channelUrl = null,
+        thumbnail = "https://i.ytimg.com/vi/$id/hqdefault.jpg", avatar = null,
+        durationSec = 0, views = 0, uploaded = null,
+    )
+}

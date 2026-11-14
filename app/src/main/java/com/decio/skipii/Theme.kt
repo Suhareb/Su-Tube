@@ -55,12 +55,96 @@ val ExpressiveShapes = Shapes(
  * Heavy rounded face for titles (header, section titles, video titles). Pixel ships a
  * rounded sans; other devices fall back to the regular sans at the same weight.
  */
-val RoundedHeavy = FontFamily(
+private val RoundedHeavyDefault = FontFamily(
     Font(DeviceFontFamilyName("sans-serif-rounded"), weight = FontWeight.ExtraBold),
     Font(DeviceFontFamilyName("sans-serif-rounded"), weight = FontWeight.Bold),
     Font(DeviceFontFamilyName("sans-serif"), weight = FontWeight.ExtraBold),
     Font(DeviceFontFamilyName("sans-serif"), weight = FontWeight.Bold),
 )
+
+/** The titles' face: the person's own font when they picked one ([AppFont]), else [RoundedHeavyDefault]. */
+val RoundedHeavy: FontFamily get() = AppFont.family ?: RoundedHeavyDefault
+
+/**
+ * A font file the person picked (Settings › Appearance): copied into the app's own storage so it
+ * survives, and used for all text in place of the phone's font. Emoji follow the phone's emoji
+ * font unless the picked font has its own.
+ */
+object AppFont {
+    private const val FILE = "custom_font"
+    private var prefs: SharedPreferences? = null
+
+    var family by mutableStateOf<FontFamily?>(null)
+        private set
+    /** The picked file's name without its extension, for the settings row. */
+    var name by mutableStateOf<String?>(null)
+        private set
+
+    fun init(context: Context) {
+        val p = context.getSharedPreferences("appearance", Context.MODE_PRIVATE).also { prefs = it }
+        val file = java.io.File(context.filesDir, FILE)
+        if (!file.exists()) return
+        val face = runCatching { android.graphics.Typeface.Builder(file).build() }.getOrNull()
+        if (face == null) { file.delete(); return }
+        family = FontFamily(face)
+        name = p.getString("font_name", null)
+    }
+
+    /** Copies [uri] in and applies it; false (nothing changed) if it isn't a font Android can load. */
+    fun import(context: Context, uri: android.net.Uri): Boolean {
+        val temp = java.io.File(context.filesDir, "$FILE.new")
+        val face = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                temp.outputStream().use { out -> input.copyTo(out) }
+            } ?: error("no data")
+            if (temp.length() > 40L * 1024 * 1024) error("too big")
+            android.graphics.Typeface.Builder(temp).build() ?: error("not a font")
+        }.getOrNull()
+        if (face == null) { temp.delete(); return false }
+        val file = java.io.File(context.filesDir, FILE)
+        file.delete()
+        if (!temp.renameTo(file)) { temp.delete(); return false }
+        val shown = runCatching {
+            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        }.getOrNull()?.substringBeforeLast('.')?.ifBlank { null }
+        family = FontFamily(android.graphics.Typeface.Builder(file).build() ?: face)
+        name = shown
+        prefs?.edit()?.putString("font_name", shown)?.apply()
+        return true
+    }
+
+    fun reset(context: Context) {
+        java.io.File(context.filesDir, FILE).delete()
+        family = null
+        name = null
+        prefs?.edit()?.remove("font_name")?.apply()
+    }
+}
+
+/** Material's type scale, in the picked font when there is one. */
+private fun appTypography(): Typography {
+    val base = Typography()
+    val font = AppFont.family ?: return base
+    return Typography(
+        displayLarge = base.displayLarge.copy(fontFamily = font),
+        displayMedium = base.displayMedium.copy(fontFamily = font),
+        displaySmall = base.displaySmall.copy(fontFamily = font),
+        headlineLarge = base.headlineLarge.copy(fontFamily = font),
+        headlineMedium = base.headlineMedium.copy(fontFamily = font),
+        headlineSmall = base.headlineSmall.copy(fontFamily = font),
+        titleLarge = base.titleLarge.copy(fontFamily = font),
+        titleMedium = base.titleMedium.copy(fontFamily = font),
+        titleSmall = base.titleSmall.copy(fontFamily = font),
+        bodyLarge = base.bodyLarge.copy(fontFamily = font),
+        bodyMedium = base.bodyMedium.copy(fontFamily = font),
+        bodySmall = base.bodySmall.copy(fontFamily = font),
+        labelLarge = base.labelLarge.copy(fontFamily = font),
+        labelMedium = base.labelMedium.copy(fontFamily = font),
+        labelSmall = base.labelSmall.copy(fontFamily = font),
+    )
+}
 
 // ── Themes ported from Ledgii (2026-10-05) ────────────────────────────────────
 // Everything from hexToHsl down to the end of seedScheme is copied verbatim from
@@ -561,7 +645,7 @@ fun SkipiiTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val scheme = themedScheme(context, ThemeSettings.seed, dark)
     SystemBars(dark, scheme.surface)
-    MaterialTheme(colorScheme = scheme, shapes = ExpressiveShapes, typography = Typography()) {
+    MaterialTheme(colorScheme = scheme, shapes = ExpressiveShapes, typography = appTypography()) {
         CompositionLocalProvider(
             // No tap ripples anywhere: press feedback is the scale-down from Motion.kt.
             LocalRippleConfiguration provides null,

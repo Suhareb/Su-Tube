@@ -21,6 +21,7 @@ class SkipiiApplication : Application(), ImageLoaderFactory {
         // The iOS client only adds HLS livestream formats; Skipii plays VOD, so skip that request.
         org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor.setFetchIosClient(false)
         ThemeSettings.init(this)
+        AppFont.init(this)
         QualityPreference.init(this)
         PlaybackSpeed.init(this)
         AudioOnly.init(this)

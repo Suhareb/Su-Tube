@@ -107,14 +107,21 @@ object CommentFeed {
         val comments = ArrayList<Comment>()
         var total = -1
         var next: String? = null
+        var sortTokens: List<String> = emptyList()
         page.walk { key, obj ->
             if (key != "reloadContinuationItemsCommand" && key != "appendContinuationItemsAction") return@walk
             val items = obj.optJSONArray("continuationItems") ?: return@walk
             for (i in 0 until items.length()) {
                 val item = items.optJSONObject(i) ?: continue
                 when {
-                    item.has("commentsHeaderRenderer") -> item.getJSONObject("commentsHeaderRenderer").text("countText")
-                        ?.let { InnerTube.parseViews(it) }?.takeIf { it >= 0 }?.let { total = it.toInt() }
+                    item.has("commentsHeaderRenderer") -> {
+                        val header = item.getJSONObject("commentsHeaderRenderer")
+                        header.text("countText")?.let { InnerTube.parseViews(it) }?.takeIf { it >= 0 }?.let { total = it.toInt() }
+                        val menu = header.optJSONObject("sortMenu")?.optJSONObject("sortFilterSubMenuRenderer")?.optJSONArray("subMenuItems")
+                        if (menu != null) {
+                            sortTokens = (0 until menu.length()).mapNotNull { n -> menu.optJSONObject(n)?.collectStrings("token")?.firstOrNull() }
+                        }
+                    }
                     item.has("commentThreadRenderer") -> {
                         val thread = item.getJSONObject("commentThreadRenderer")
                         val repliesToken = thread.optJSONObject("replies")?.collectStrings("token")?.firstOrNull()
@@ -129,7 +136,7 @@ object CommentFeed {
         }
         // Pages can overlap at the boundary; ids stay unique for the list keys.
         val unique = comments.distinctBy { it.id }
-        return CommentsPage(unique, total, disabled = false, next = next)
+        return CommentsPage(unique, total, disabled = false, next = next, sortTokens = sortTokens)
     }
 
     /** The innermost commentViewModel (threads nest it twice: commentViewModel.commentViewModel). */

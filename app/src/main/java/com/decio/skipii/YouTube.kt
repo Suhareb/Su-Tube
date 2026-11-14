@@ -166,6 +166,8 @@ data class CommentsPage(
     val next: String?,
     /** The video's chapters, read off the same first `next` page (see [CommentFeed.parseChapters]). */
     val chapters: List<Chapter> = emptyList(),
+    /** The tokens behind the header's sort menu, in its order: Top comments, then Newest first (empty if YouTube sent none). */
+    val sortTokens: List<String> = emptyList(),
 )
 
 /** Everything the app asks of YouTube goes through here. All calls are blocking-safe (IO). */

@@ -2,6 +2,9 @@ package com.decio.skipii
 
 import android.Manifest
 import android.content.Intent
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.automirrored.rounded.Undo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -859,6 +862,23 @@ private fun IconDisc(icon: ImageVector, description: String, onClick: () -> Unit
     }
 }
 
+/** Android's "Open by default" page for this app (Android 12+), where YouTube links can be switched on; else the app's info page. */
+private fun android.content.Context.openLinkSettings(onMessage: (String) -> Unit) {
+    val pkg = Uri.parse("package:$packageName")
+    val pages = buildList {
+        if (Build.VERSION.SDK_INT >= 31) add(Intent(android.provider.Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, pkg))
+        add(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg))
+    }
+    for (page in pages) {
+        try {
+            startActivity(page.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        } catch (_: android.content.ActivityNotFoundException) {
+        }
+    }
+    onMessage(str(R.string.settings_no_app))
+}
+
 /** Opens [intent]; with no app on the phone to take it, says so instead. */
 private fun android.content.Context.openOrSay(intent: Intent, onMessage: (String) -> Unit) {
     try {
@@ -985,6 +1005,7 @@ private fun entries(): List<Entry> = buildList {
     val ap = SettingsPage.Appearance
     add(Entry(ap, "mode", str(R.string.settings_mode), listOf(str(R.string.ui_mode_system), str(R.string.ui_mode_light), str(R.string.ui_mode_dark))))
     add(Entry(ap, "amoled", str(R.string.settings_amoled_title), listOf(str(R.string.settings_amoled_line), "AMOLED", "OLED")))
+    add(Entry(ap, "font", str(R.string.ui_font_title), listOf(str(R.string.ui_font_line), "ttf", "otf", "typeface")))
     add(Entry(ap, "theme", str(R.string.settings_theme), listOf(str(R.string.ui_theme_wallpaper)) + SKIPII_THEMES.map { it.name }))
     add(Entry(SettingsPage.Language, "lang", str(R.string.language_title), AppLanguage.choices.map { it.name } + str(R.string.language_phone)))
     val nt = SettingsPage.Notifications
@@ -994,6 +1015,7 @@ private fun entries(): List<Entry> = buildList {
     val ab = SettingsPage.About
     add(Entry(ab, "version", str(R.string.settings_version, BuildConfig.VERSION_NAME), listOf(str(R.string.settings_checking))))
     add(Entry(ab, "crash", str(R.string.settings_crash_title), listOf(str(R.string.settings_crash_none), str(R.string.settings_crash_saved))))
+    add(Entry(ab, "links", str(R.string.settings_open_links_title), listOf(str(R.string.settings_open_links_line), "youtube", "shorts", "default")))
     add(Entry(ab, "source", str(R.string.settings_source), listOf(str(R.string.settings_source_line), "GitHub")))
 }
 
@@ -1571,6 +1593,28 @@ private fun AppearancePage() {
             }
         }
     }
+    // Custom font: any .ttf / .otf from the device (the picker lists every file type: font types
+    // have no reliable MIME type), kept in the app's own storage.
+    var fontNote by remember { mutableStateOf<String?>(null) }
+    val fontBad = stringResource(R.string.ui_font_bad)
+    val pickFont = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) fontNote = if (AppFont.import(context, uri)) null else fontBad
+    }
+    Spacer(Modifier.height(14.dp))
+    Joined(if (AppFont.family != null) 2 else 1) { i, shape ->
+        if (i == 0) {
+            LinkSetting(
+                "font", shape, Icons.Rounded.TextFields, stringResource(R.string.ui_font_title),
+                AppFont.name?.let { stringResource(R.string.ui_font_active, it) } ?: stringResource(R.string.ui_font_line),
+            ) { pickFont.launch(arrayOf("*/*")) }
+        } else {
+            LinkSetting(
+                "font_reset", shape, Icons.AutoMirrored.Rounded.Undo, stringResource(R.string.ui_font_reset_title),
+                stringResource(R.string.ui_font_reset_line),
+            ) { AppFont.reset(context); fontNote = null }
+        }
+    }
+    Note(fontNote ?: stringResource(R.string.ui_font_note))
 }
 
 @Composable
@@ -1710,7 +1754,7 @@ private fun AboutPage(player: PlayerState) {
     Spacer(Modifier.height(14.dp))
     val scope = rememberCoroutineScope()
     val shareTitle = stringResource(R.string.settings_crash_share)
-    Joined(3) { i, shape ->
+    Joined(4) { i, shape ->
         if (i == 0) {
             LinkSetting("version", shape, Icons.Rounded.SystemUpdateAlt, stringResource(R.string.settings_version, BuildConfig.VERSION_NAME), updateStatus()) {
                 if (AppUpdate.available != null) whatsNew = true else AppUpdate.checkNow()
@@ -1727,6 +1771,10 @@ private fun AboutPage(player: PlayerState) {
                     context.openOrSay(Intent.createChooser(send, shareTitle)) { player.actionMessage = it }
                     CrashLog.markShared()
                 }
+            }
+        } else if (i == 2) {
+            LinkSetting("links", shape, Icons.Rounded.Link, stringResource(R.string.settings_open_links_title), stringResource(R.string.settings_open_links_line)) {
+                context.openLinkSettings { player.actionMessage = it }
             }
         } else {
             LinkSetting("source", shape, Icons.Rounded.Code, stringResource(R.string.settings_source), stringResource(R.string.settings_source_line)) {

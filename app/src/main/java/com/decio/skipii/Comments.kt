@@ -124,6 +124,11 @@ class CommentsState(private val scope: CoroutineScope) {
     var loading by mutableStateOf(false)
         private set
     var error by mutableStateOf<String?>(null)
+    /** YouTube's sort menu tokens (Top, Newest first) for this video; fewer than two = no sorting offered. */
+    var sortTokens by mutableStateOf<List<String>>(emptyList())
+        private set
+    var newestFirst by mutableStateOf(false)
+        private set
         private set
     private var next: String? = null
     val hasMore get() = next != null
@@ -152,6 +157,7 @@ class CommentsState(private val scope: CoroutineScope) {
         job?.cancel()
         videoId = id
         comments = emptyList(); total = -1; disabled = false; error = null; next = null
+        sortTokens = emptyList(); newestFirst = false
         replies.clear(); repliesLoading.clear(); replyingTo = null; draft = ""; postError = null
         loading = true
     }
@@ -166,6 +172,8 @@ class CommentsState(private val scope: CoroutineScope) {
         disabled = false
         error = null
         next = null
+        sortTokens = emptyList()
+        newestFirst = false
         replies.clear()
         repliesLoading.clear()
         liked.clear()
@@ -181,10 +189,35 @@ class CommentsState(private val scope: CoroutineScope) {
                     total = page.total
                     disabled = page.disabled
                     next = page.next
+                    sortTokens = page.sortTokens
                     arrived(page.comments)
                     if (page.chapters.isNotEmpty()) onChapters?.invoke(id, page.chapters)
                 }
                 .onFailure { if (videoId == id) error = YouTube.friendlyError(it) }
+            loading = false
+        }
+    }
+
+    /** Top comments (first sort token) or Newest first (second); reloads the list in that order. */
+    fun chooseSort(newest: Boolean) {
+        val id = videoId ?: return
+        if (newest == newestFirst) return
+        val token = sortTokens.getOrNull(if (newest) 1 else 0) ?: return
+        newestFirst = newest
+        job?.cancel()
+        comments = emptyList(); next = null; error = null
+        replies.clear(); repliesLoading.clear()
+        loading = true
+        job = scope.launch {
+            runCatching { CommentFeed.more(token) }
+                .onSuccess { page ->
+                    if (videoId != id) return@onSuccess
+                    comments = page.comments
+                    next = page.next
+                    if (page.total >= 0) total = page.total
+                    arrived(page.comments)
+                }
+                .onFailure { if (videoId == id) { error = YouTube.friendlyError(it); newestFirst = !newest } }
             loading = false
         }
     }
@@ -346,6 +379,12 @@ fun CommentsPanel(state: CommentsState, partialTop: Dp, onClose: () -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Text(formatCount(state.total.toLong()), color = c.onSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
+            if (state.sortTokens.size >= 2) {
+                Spacer(Modifier.width(14.dp))
+                SortChip(stringResource(R.string.comments_sort_top), selected = !state.newestFirst) { state.chooseSort(false) }
+                Spacer(Modifier.width(6.dp))
+                SortChip(stringResource(R.string.comments_sort_newest), selected = state.newestFirst) { state.chooseSort(true) }
+            }
         },
     ) { listModifier ->
         val list = rememberLazyListState()
@@ -376,6 +415,24 @@ fun CommentsPanel(state: CommentsState, partialTop: Dp, onClose: () -> Unit) {
         // Clear of the gesture bar when the keyboard isn't up.
         Spacer(Modifier.fillMaxWidth().background(c.surfaceContainer).windowInsetsBottomHeight(WindowInsets.navigationBars))
     }
+}
+
+/** One of the comment sort choices beside the panel's title. */
+@Composable
+private fun SortChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Text(
+        label,
+        color = if (selected) c.onPrimary else c.onSurfaceVariant,
+        fontWeight = FontWeight.Bold,
+        fontSize = 12.5.sp,
+        maxLines = 1,
+        modifier = Modifier
+            .pressable(pressedScale = 0.94f, onClick = onClick)
+            .clip(CircleShape)
+            .background(if (selected) c.primary else c.surfaceContainerHighest)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 /**

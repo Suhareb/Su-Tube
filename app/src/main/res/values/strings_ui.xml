@@ -164,4 +164,17 @@
         <item quantity="one">Forward %1$s second</item>
         <item quantity="other">Forward %1$s seconds</item>
     </plurals>
+
+    <!-- Su Tube additions: English only (translatable="false"), other languages show these as written. -->
+    <string name="ui_font_title" translatable="false">Custom font</string>
+    <string name="ui_font_line" translatable="false">Pick a .ttf or .otf file from your device</string>
+    <string name="ui_font_active" translatable="false">Using %1$s</string>
+    <string name="ui_font_reset_title" translatable="false">Default font</string>
+    <string name="ui_font_reset_line" translatable="false">Go back to the phone\'s font</string>
+    <string name="ui_font_bad" translatable="false">That file isn\'t a usable font.</string>
+    <string name="ui_font_note" translatable="false">The font is used across the app. Emoji keep your phone\'s emoji unless the font you pick has its own.</string>
+    <string name="settings_open_links_title" translatable="false">Open YouTube links here</string>
+    <string name="settings_open_links_line" translatable="false">Make YouTube video and Shorts links open in Su Tube</string>
+    <string name="comments_sort_top" translatable="false">Top</string>
+    <string name="comments_sort_newest" translatable="false">Newest</string>
 </resources>
