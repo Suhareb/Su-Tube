@@ -5,7 +5,8 @@ plugins {
 }
 
 android {
-    ...
+    namespace = "com.su.tube"
+    compileSdk = 36
     signingConfigs {
         create("release") {
             storeFile = file("release-key.jks")
@@ -13,9 +14,7 @@ android {
             keyAlias = System.getenv("SIGNING_KEY_ALIAS")
             keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
         }
-    namespace = "com.decio.skipii"
-    compileSdk = 36
-
+    }
     defaultConfig {
         applicationId = "com.sutube"
         minSdk = 26
