@@ -12,7 +12,7 @@ Sponsor segments get skipped with [SponsorBlock](https://sponsor.ajay.app).
 
 ## Download
 
-**[Su Tube.apk](https://github.com/deciocrytek/Skipii/releases/latest/download/Su Tube.apk)**: always the
+**[Su Tube.apk](https://github.com/deciocrytek/Skipii/releases/latest/download/Su-Tube.apk)**: always the
 latest release. Open it on your phone and allow installs from your browser. Updates install over
 the previous version.
 
