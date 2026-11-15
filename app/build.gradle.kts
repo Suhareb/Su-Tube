@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.su.tube"
+    namespace = "com.decio.skipii"
     compileSdk = 36
     signingConfigs {
         create("release") {
@@ -16,7 +16,7 @@ android {
         }
     }
     defaultConfig {
-        applicationId = "com.sutube"
+        applicationId = "com.decio.skipii"
         minSdk = 26
         targetSdk = 36
         versionCode = 123
