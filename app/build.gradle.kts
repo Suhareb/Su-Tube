@@ -34,14 +34,14 @@ android {
     buildTypes {
         debug {
             // Same key as release, so either build installs over the other and over its own earlier versions.
-            signingConfigs.findByName("sutube")?.let { signingConfig = it }
+            signingConfigs.getByName("release").takeIf { it.storeFile != null }?.let { signingConfig = it }
         }
         release {
             // Judge speed and smoothness on this build type, never on debug.
             isMinifyEnabled = true
             isShrinkResources = true
             // The fixed key when the build has it (updates then install over each other); else the debug key.
-            signingConfig = signingConfigs.findByName("sutube") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null } ?: signingConfigs.getByName("debug")
             // ML Kit's translator (captions) is the app's only native code, ~16 MB per CPU type: phones only
             // (64- and 32-bit ARM). Debug keeps x86 for the emulator.
             ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }

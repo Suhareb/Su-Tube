@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,8 @@ fun CollapsingHeaderLayout(
     resetKey: Any? = null,
     header: @Composable () -> Unit,
     pinned: (@Composable (headerBottom: () -> Float) -> Unit)? = null,
+    /** True: the header stays put whatever the list does (a page that pins its heading and search box). */
+    locked: Boolean = false,
     content: @Composable (top: Dp) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -67,13 +70,14 @@ fun CollapsingHeaderLayout(
     val offset = remember { Animatable(0f) }
     val settleSpec = spring<Float>(dampingRatio = 0.9f, stiffness = 420f)
 
-    LaunchedEffect(resetKey) { if (reduced) offset.snapTo(0f) else offset.animateTo(0f, settleSpec) }
+    val isLocked = rememberUpdatedState(locked)
+    LaunchedEffect(resetKey, locked) { if (reduced || locked) offset.snapTo(0f) else offset.animateTo(0f, settleSpec) }
 
     val connection = remember(reduced) {
         object : NestedScrollConnection {
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 val h = headerPx.toFloat()
-                if (h <= 0f || consumed.y == 0f) return Offset.Zero
+                if (isLocked.value || h <= 0f || consumed.y == 0f) return Offset.Zero
                 // Follows what the list actually scrolled, so a list too short to scroll
                 // (or the pull-to-refresh overscroll) never moves the header.
                 val target = (offset.value + consumed.y).coerceIn(-h, 0f)
@@ -84,7 +88,7 @@ fun CollapsingHeaderLayout(
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 val h = headerPx.toFloat()
                 val v = offset.value
-                if (h > 0f && v < 0f && v > -h) {
+                if (!isLocked.value && h > 0f && v < 0f && v > -h) {
                     val target = if (v < -h / 2f) -h else 0f
                     if (reduced) offset.snapTo(target) else offset.animateTo(target, settleSpec)
                 }

@@ -33,15 +33,17 @@ jobs:
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/sutube.jks"
-            echo "SUTUBE_KEYSTORE_FILE=$RUNNER_TEMP/sutube.jks" >> "$GITHUB_ENV"
+            # The build reads the keystore's *path* from KEYSTORE_BASE64 (see app/build.gradle.kts).
+            echo "KEYSTORE_BASE64=$RUNNER_TEMP/sutube.jks" >> "$GITHUB_ENV"
+            echo "SIGNING_READY=true" >> "$GITHUB_ENV"
           else
             echo "No signing key in the secrets: building with the debug key."
           fi
       - name: Assemble debug and release
         env:
-          SUTUBE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          SUTUBE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          SUTUBE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleDebug assembleRelease --console=plain
       - uses: actions/upload-artifact@v4
         with:
@@ -49,7 +51,7 @@ jobs:
           path: app/build/outputs/apk/**/*.apk
       # A tag push with the real key: publish the release the updater looks for.
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v') && env.SUTUBE_KEYSTORE_FILE != ''
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_READY == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

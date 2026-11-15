@@ -348,7 +348,6 @@ private fun ChannelRail(channels: List<ChannelRef>) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LibraryScreen(
     lib: LibraryData,
@@ -364,6 +363,19 @@ fun LibraryScreen(
     var historyOpen by rememberSaveable { mutableStateOf(false) }
     var historyQuery by rememberSaveable { mutableStateOf("") }
     val columns = gridColumns()
+    // Expanded History pins the page title, the History heading with Show less, and the search box above the
+    // list: they never scroll away, and only the videos move beneath them.
+    val pinHistory = signedIn && historyOpen && lib.history.videos.isNotEmpty()
+    val showAllLabel = stringResource(R.string.ui_history_all)
+    val showLessLabel = stringResource(R.string.ui_history_less)
+    val historyTitle = stringResource(R.string.ui_history)
+    val historyHeader: @Composable () -> Unit = {
+        LibraryRowTitle(
+            title = historyTitle,
+            label = if (lib.history.videos.isNotEmpty()) (if (historyOpen) showLessLabel else showAllLabel) else null,
+            icon = if (historyOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+        ) { historyOpen = !historyOpen; if (!historyOpen) historyQuery = "" }
+    }
     LaunchedEffect(signedIn) {
         if (signedIn) {
             lib.history.ensureLoaded()
@@ -373,8 +385,18 @@ fun LibraryScreen(
         }
     }
     CollapsingHeaderLayout(
-        resetKey = scrollToTop to lib.history.generation,
-        header = { ScreenHeader(title = stringResource(R.string.ui_library_title)) { AccountAction(onAccount) } },
+        resetKey = Triple(scrollToTop, lib.history.generation, pinHistory),
+        locked = pinHistory,
+        header = {
+            Column {
+                ScreenHeader(title = stringResource(R.string.ui_library_title)) { AccountAction(onAccount) }
+                if (pinHistory) {
+                    historyHeader()
+                    HistorySearchField(historyQuery) { historyQuery = it }
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+        },
     ) { top ->
         PullToRefresh(
             enabled = signedIn,
@@ -386,16 +408,6 @@ fun LibraryScreen(
         val watchLater = stringResource(R.string.ui_watch_later)
         val likedVideos = stringResource(R.string.ui_liked_videos)
         val showAll = stringResource(R.string.ui_history_all)
-        val showLess = stringResource(R.string.ui_history_less)
-        val historyTitle = stringResource(R.string.ui_history)
-        // The History heading and its Show all / Show less button: pinned to the top while the expanded list scrolls.
-        val historyHeader: @Composable () -> Unit = {
-            LibraryRowTitle(
-                title = historyTitle,
-                label = if (lib.history.videos.isNotEmpty()) (if (historyOpen) showLess else showAll) else null,
-                icon = if (historyOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-            ) { historyOpen = !historyOpen; if (!historyOpen) historyQuery = "" }
-        }
         LazyColumn(state = rememberScrollToTop(scrollToTop), contentPadding = contentPadding.withTop(top)) {
             if (!signedIn) {
                 item {
@@ -408,16 +420,9 @@ fun LibraryScreen(
                 }
                 return@LazyColumn
             }
-            if (historyOpen) {
-                stickyHeader(key = "historyTitle") {
-                    Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) { historyHeader() }
-                }
-            } else {
-                item(key = "historyTitle") { historyHeader() }
-            }
-            // Expanded: a search box, then the whole history as cards that keep loading as it's scrolled.
-            if (historyOpen && lib.history.videos.isNotEmpty()) {
-                item(key = "historySearch") { HistorySearchField(historyQuery) { historyQuery = it } }
+            if (!pinHistory) item(key = "historyTitle") { historyHeader() }
+            // Expanded: the whole history as cards that keep loading as it's scrolled (heading and search sit above).
+            if (pinHistory) {
                 val all = lib.history.videos.distinctBy { it.id }
                 val query = historyQuery.trim()
                 val matches = if (query.isEmpty()) all else all.filter { it.title.contains(query, ignoreCase = true) || it.channel.contains(query, ignoreCase = true) }
