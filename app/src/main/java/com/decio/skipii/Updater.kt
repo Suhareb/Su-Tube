@@ -87,8 +87,9 @@ import java.util.Locale
 object AppUpdate {
     private const val TAG = "Skipii"
     /** Newest first; enough to cover the notes of every release a phone may have skipped. */
-    private const val RELEASES_URL = "https://api.github.com/repos/deciocrytek/Skipii/releases?per_page=30"
-    private const val APK_ASSET = "Skipii.apk"
+    private const val RELEASES_URL = "https://api.github.com/repos/Suhareb/Su-Tube/releases?per_page=30"
+    /** The release file to name it; if no file has this name, the release's only .apk is taken. */
+    private const val APK_ASSET = "SuTube.apk"
     private const val CHECK_EVERY_MS = 24 * 60 * 60 * 1000L
     /** A check that failed (offline, rate limit) tries again after this, not a day later. */
     private const val RETRY_AFTER_MS = 60 * 60 * 1000L
@@ -274,7 +275,7 @@ object AppUpdate {
     private fun fetchLatest(): Release? {
         val request = Request.Builder().url(RELEASES_URL)
             .header("Accept", "application/vnd.github+json")
-            .header("User-Agent", "Skipii/${BuildConfig.VERSION_NAME}")
+            .header("User-Agent", "SuTube/${BuildConfig.VERSION_NAME}")
             .build()
         Net.client.newCall(request).execute().use { response ->
             check(response.isSuccessful) { "HTTP ${response.code}" }
@@ -304,7 +305,10 @@ object AppUpdate {
         val version = json.optString("tag_name").removePrefix("v").ifBlank { return null }
         val assets = json.optJSONArray("assets") ?: return null
         val apk = (0 until assets.length()).map { assets.getJSONObject(it) }
-            .firstOrNull { it.optString("name") == APK_ASSET } ?: return null
+            .let { all ->
+                all.firstOrNull { it.optString("name").equals(APK_ASSET, ignoreCase = true) }
+                    ?: all.filter { it.optString("name").endsWith(".apk", ignoreCase = true) }.singleOrNull()
+            } ?: return null
         return Release(
             version = version,
             apkUrl = apk.optString("browser_download_url").ifBlank { return null },
@@ -379,7 +383,7 @@ object AppUpdate {
         }
         progress = 0f
         val part = File(dir(), file.name + ".part")
-        val request = Request.Builder().url(release.apkUrl).header("User-Agent", "Skipii/${BuildConfig.VERSION_NAME}").build()
+        val request = Request.Builder().url(release.apkUrl).header("User-Agent", "SuTube/${BuildConfig.VERSION_NAME}").build()
         Net.client.newCall(request).execute().use { response ->
             check(response.isSuccessful) { "HTTP ${response.code}" }
             val body = checkNotNull(response.body) { "no body" }

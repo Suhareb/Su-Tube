@@ -16,14 +16,31 @@ android {
         versionName = "0.5.114"
     }
 
+    signingConfigs {
+        // The release key lives in the repo's GitHub secrets (see .github/workflows/build.yml), never in the
+        // code. Without it (a local build, say) the debug key signs instead, so the build never breaks.
+        val keystore = System.getenv("SUTUBE_KEYSTORE_FILE")
+        if (keystore != null && java.io.File(keystore).exists()) {
+            create("sutube") {
+                storeFile = java.io.File(keystore)
+                storePassword = System.getenv("SUTUBE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("SUTUBE_KEY_ALIAS")
+                keyPassword = System.getenv("SUTUBE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            // Same key as release, so either build installs over the other and over its own earlier versions.
+            signingConfigs.findByName("sutube")?.let { signingConfig = it }
+        }
         release {
             // Judge speed and smoothness on this build type, never on debug.
             isMinifyEnabled = true
             isShrinkResources = true
-            // Sideloaded personal build: the debug key is fine until there's a reason
-            // to distribute it.
-            signingConfig = signingConfigs.getByName("debug")
+            // The fixed key when the build has it (updates then install over each other); else the debug key.
+            signingConfig = signingConfigs.findByName("sutube") ?: signingConfigs.getByName("debug")
             // ML Kit's translator (captions) is the app's only native code, ~16 MB per CPU type: phones only
             // (64- and 32-bit ARM). Debug keeps x86 for the emulator.
             ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }

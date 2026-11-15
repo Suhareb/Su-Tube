@@ -1,0 +1,58 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    # Pushing a tag like v0.5.115 also publishes a GitHub release with the APK, which is what the
+    # app's updater reads.
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      # The signing key comes from the repo's secrets (Settings > Secrets and variables > Actions):
+      #   KEYSTORE_BASE64   the keystore file, base64-encoded
+      #   KEYSTORE_PASSWORD the keystore's password
+      #   KEY_ALIAS         the key's alias
+      #   KEY_PASSWORD      the key's password
+      # Without them (and on pull requests) the build still works, signed with the debug key.
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/sutube.jks"
+            echo "SUTUBE_KEYSTORE_FILE=$RUNNER_TEMP/sutube.jks" >> "$GITHUB_ENV"
+          else
+            echo "No signing key in the secrets: building with the debug key."
+          fi
+      - name: Assemble debug and release
+        env:
+          SUTUBE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SUTUBE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SUTUBE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleDebug assembleRelease --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sutube-apks
+          path: app/build/outputs/apk/**/*.apk
+      # A tag push with the real key: publish the release the updater looks for.
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v') && env.SUTUBE_KEYSTORE_FILE != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK="$(ls app/build/outputs/apk/release/*.apk | head -n 1)"
+          cp "$APK" SuTube.apk
+          gh release create "$GITHUB_REF_NAME" SuTube.apk --title "$GITHUB_REF_NAME" --generate-notes

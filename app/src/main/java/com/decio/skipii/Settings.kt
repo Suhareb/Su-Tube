@@ -194,7 +194,7 @@ private val FoldDistance = 70.dp
 private val OuterCorner = 21.dp
 private val InnerCorner = 7.dp
 private val JoinGap = 3.dp
-private const val SourceUrl = "https://github.com/deciocrytek/Skipii"
+private const val SourceUrl = "https://github.com/Suhareb/Su-Tube"
 
 /**
  * The whole page. [active] is false while it slides away (its Back stops catching). Back goes up one
@@ -805,6 +805,7 @@ private val MoodiiDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 // ── Developer card (Moodii's, last on the front page) ─────────────────────────
 
 private const val DeveloperEmail = "tyrahbanks8@gmail.com"
+private const val DeveloperGithub = "https://github.com/Suhareb"
 /** A filterable keyword in the subject, keyed to this app. */
 private const val EmailSubject = "Su Tube feedback"
 
@@ -844,6 +845,21 @@ private fun DeveloperCard(player: PlayerState, modifier: Modifier = Modifier) {
             Icon(Icons.Rounded.MailOutline, null, tint = c.onSecondaryContainer, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.settings_email_developer), color = c.onSecondaryContainer, fontWeight = FontWeight.Bold, fontSize = 14.5.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .pressable(pressedScale = 0.97f) { context.openOrSay(Intent(Intent.ACTION_VIEW, Uri.parse(DeveloperGithub)), onMessage) }
+                .clip(CircleShape)
+                .background(c.surfaceContainerHighest)
+                .height(48.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.Code, null, tint = c.onSurface, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.settings_github_developer), color = c.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.5.sp)
         }
     }
 }
