@@ -70,7 +70,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.stickyHeader
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Path
@@ -135,6 +134,7 @@ class CommentsState(private val scope: CoroutineScope) {
     var sortTokens by mutableStateOf<List<String>>(emptyList())
         private set
     var newestFirst by mutableStateOf(false)
+        private set
         private set
     private var next: String? = null
     val hasMore get() = next != null

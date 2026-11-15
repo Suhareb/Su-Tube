@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.lazy.stickyHeader
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
@@ -737,10 +736,10 @@ class SearchState(private val scope: CoroutineScope) {
 
 /** A filter chip: filled while it's on. */
 @Composable
-private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun SearchFilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     Text(
-        text = label,
+        label,
         color = if (selected) c.onPrimary else c.onSurface,
         fontWeight = FontWeight.Bold,
         fontSize = 13.sp,
@@ -762,11 +761,11 @@ private fun SearchFilterRow(state: SearchState) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        items(SearchDate.values().toList(), key = { "d-" + it.name }) { FilterPill(stringResource(it.label), state.date == it) { state.pick(it) } }
+        items(SearchDate.values().toList(), key = { "d-" + it.name }) { SearchFilterPill(stringResource(it.label), state.date == it) { state.pick(it) } }
         item(key = "gap1") { Box(Modifier.padding(horizontal = 2.dp).size(width = 1.dp, height = 20.dp).background(c.outlineVariant)) }
-        items(SearchLength.values().toList(), key = { "l-" + it.name }) { FilterPill(stringResource(it.label), state.length == it) { state.pick(it) } }
+        items(SearchLength.values().toList(), key = { "l-" + it.name }) { SearchFilterPill(stringResource(it.label), state.length == it) { state.pick(it) } }
         item(key = "gap2") { Box(Modifier.padding(horizontal = 2.dp).size(width = 1.dp, height = 20.dp).background(c.outlineVariant)) }
-        items(SearchOrder.values().toList(), key = { "o-" + it.name }) { FilterPill(stringResource(it.label), state.order == it) { state.pick(it) } }
+        items(SearchOrder.values().toList(), key = { "o-" + it.name }) { SearchFilterPill(stringResource(it.label), state.order == it) { state.pick(it) } }
     }
 }
 
