@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.lazy.stickyHeader
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
@@ -346,6 +349,7 @@ private fun ChannelRail(channels: List<ChannelRef>) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LibraryScreen(
     lib: LibraryData,
@@ -357,12 +361,15 @@ fun LibraryScreen(
     scrollToTop: Int = 0,
 ) {
     val signedIn = Account.signedIn
-    // The history row expanded into the whole list ("Show all").
+    // The history row expanded into the whole list ("Show all"), and what's typed in its search box.
     var historyOpen by rememberSaveable { mutableStateOf(false) }
+    var historyQuery by rememberSaveable { mutableStateOf("") }
     val columns = gridColumns()
     LaunchedEffect(signedIn) {
         if (signedIn) {
             lib.history.ensureLoaded()
+            lib.watchLater.ensureLoaded()
+            lib.liked.ensureLoaded()
             if (lib.playlists.isEmpty()) lib.loadPlaylists()
         }
     }
@@ -373,12 +380,23 @@ fun LibraryScreen(
         PullToRefresh(
             enabled = signedIn,
             refreshing = lib.history.refreshing,
-            onRefresh = { lib.history.refresh(); lib.loadPlaylists() },
+            onRefresh = { lib.history.refresh(); lib.watchLater.refresh(); lib.liked.refresh(); lib.loadPlaylists() },
             topPadding = top,
         ) {
         // Resolved here: the list's builder below isn't composable.
         val watchLater = stringResource(R.string.ui_watch_later)
         val likedVideos = stringResource(R.string.ui_liked_videos)
+        val showAll = stringResource(R.string.ui_history_all)
+        val showLess = stringResource(R.string.ui_history_less)
+        val historyTitle = stringResource(R.string.ui_history)
+        // The History heading and its Show all / Show less button: pinned to the top while the expanded list scrolls.
+        val historyHeader: @Composable () -> Unit = {
+            LibraryRowTitle(
+                title = historyTitle,
+                label = if (lib.history.videos.isNotEmpty()) (if (historyOpen) showLess else showAll) else null,
+                icon = if (historyOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            ) { historyOpen = !historyOpen; if (!historyOpen) historyQuery = "" }
+        }
         LazyColumn(state = rememberScrollToTop(scrollToTop), contentPadding = contentPadding.withTop(top)) {
             if (!signedIn) {
                 item {
@@ -391,31 +409,29 @@ fun LibraryScreen(
                 }
                 return@LazyColumn
             }
-            item(key = "historyTitle") {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    SectionTitle(stringResource(R.string.ui_history), Modifier.weight(1f))
-                    if (lib.history.videos.isNotEmpty()) {
-                        val c = MaterialTheme.colorScheme
-                        Row(
-                            Modifier.padding(end = 12.dp, top = 12.dp)
-                                .pressable(pressedScale = 0.95f) { historyOpen = !historyOpen }
-                                .clip(CircleShape)
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                stringResource(if (historyOpen) R.string.ui_history_less else R.string.ui_history_all),
-                                color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                            )
-                            Icon(if (historyOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.size(18.dp))
-                        }
-                    }
+            if (historyOpen) {
+                stickyHeader(key = "historyTitle") {
+                    Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) { historyHeader() }
                 }
+            } else {
+                item(key = "historyTitle") { historyHeader() }
             }
-            // Expanded: the whole history as a list of cards that keeps loading as it's scrolled.
+            // Expanded: a search box, then the whole history as cards that keep loading as it's scrolled.
             if (historyOpen && lib.history.videos.isNotEmpty()) {
-                videoCards(lib.history.videos.distinctBy { it.id }, columns, onOpen)
+                item(key = "historySearch") { HistorySearchField(historyQuery) { historyQuery = it } }
+                val all = lib.history.videos.distinctBy { it.id }
+                val query = historyQuery.trim()
+                val matches = if (query.isEmpty()) all else all.filter { it.title.contains(query, ignoreCase = true) || it.channel.contains(query, ignoreCase = true) }
+                videoCards(matches, columns, onOpen)
+                if (query.isNotEmpty() && matches.isEmpty() && !lib.history.hasMore && !lib.history.loading) item(key = "historyNoMatch") {
+                    Text(
+                        stringResource(R.string.ui_history_no_match),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    )
+                }
                 if (lib.history.hasMore || lib.history.loading) item(key = "historyMore") {
+                    // Composed as it comes into view: the cue for the next page (a search keeps reading on until it finds matches).
                     LaunchedEffect(lib.history.videos.size) { lib.history.loadMore() }
                     Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
@@ -440,18 +456,106 @@ fun LibraryScreen(
                     )
                 }
             }
-            item(key = "playlistsTitle") { SectionTitle(stringResource(R.string.ui_playlists)) }
-            val pinned = listOf(
-                PlaylistRef("WL", watchLater, null, null),
-                PlaylistRef("LL", likedVideos, null, null),
-            )
-            items((pinned + lib.playlists).chunked(2), key = { row -> row.joinToString { it.id } }) { row ->
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    row.forEach { pl -> PlaylistTile(pl, Modifier.weight(1f)) { onOpenPlaylist(pl) } }
-                    if (row.size == 1) Spacer(Modifier.weight(1f))
+            // Watch later and Liked videos: rows like History; Show all opens the usual playlist page.
+            item(key = "watchLaterTitle") {
+                LibraryRowTitle(watchLater, showAll, Icons.AutoMirrored.Rounded.KeyboardArrowRight) { onOpenPlaylist(PlaylistRef("WL", watchLater, null, null)) }
+            }
+            item(key = "watchLater") { LibraryVideoRow(lib.watchLater, "wl", onOpen) }
+            item(key = "likedTitle") {
+                LibraryRowTitle(likedVideos, showAll, Icons.AutoMirrored.Rounded.KeyboardArrowRight) { onOpenPlaylist(PlaylistRef("LL", likedVideos, null, null)) }
+            }
+            item(key = "liked") { LibraryVideoRow(lib.liked, "ll", onOpen) }
+            if (lib.playlists.isNotEmpty()) {
+                item(key = "playlistsTitle") { SectionTitle(stringResource(R.string.ui_playlists)) }
+                items(lib.playlists.chunked(2), key = { row -> row.joinToString { it.id } }) { row ->
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { pl -> PlaylistTile(pl, Modifier.weight(1f)) { onOpenPlaylist(pl) } }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
+        }
+    }
+}
+
+/** A Library row's heading with a button at its end ([label] null: no button). */
+@Composable
+private fun LibraryRowTitle(title: String, label: String?, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        SectionTitle(title, Modifier.weight(1f))
+        if (label != null) {
+            Row(
+                Modifier.padding(end = 12.dp, top = 12.dp)
+                    .pressable(pressedScale = 0.95f, onClick = onClick)
+                    .clip(CircleShape)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(label, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Icon(icon, null, tint = c.primary, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+/** A row of video cards for a Library list (Watch later, Liked videos): its first twenty, scrolling sideways. */
+@Composable
+private fun LibraryVideoRow(feed: FeedState, keyPrefix: String, onOpen: (VideoItem) -> Unit) {
+    val videos = feed.videos
+    when {
+        videos.isNotEmpty() -> LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(videos.distinctBy { it.id }.take(20), key = { keyPrefix + "-" + it.id }) { video -> HistoryCard(video) { onOpen(video) } }
+        }
+        feed.loading -> Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
+        }
+        else -> Text(
+            feed.error ?: stringResource(R.string.ui_row_empty),
+            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+    }
+}
+
+/** The search box under the expanded History heading: filters the loaded history by title or channel. */
+@Composable
+private fun HistorySearchField(value: String, onChange: (String) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(CircleShape)
+            .background(c.surfaceContainerHigh)
+            .padding(start = 16.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Search, null, tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f)) {
+            if (value.isEmpty()) {
+                Text(stringResource(R.string.ui_history_search_hint), color = c.onSurfaceVariant, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = OwnDirectionText.merge(TextStyle(color = c.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)),
+                cursorBrush = SolidColor(c.primary),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (value.isNotEmpty()) {
+            Box(Modifier.size(40.dp).pressable { onChange("") }, contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Close, stringResource(R.string.ui_clear_search), tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            }
         }
     }
 }
@@ -547,6 +651,17 @@ private fun TextLink(text: String, onClick: () -> Unit) {
 
 /** Lives above the tab switcher so results survive switching tabs. */
 @Stable
+/** Search filters, one tap each on the page (tap again to clear); the numbers are YouTube's own codes. */
+enum class SearchDate(val code: Int, val label: Int) {
+    Today(2, R.string.search_f_today), Week(3, R.string.search_f_week), Month(4, R.string.search_f_month), Year(5, R.string.search_f_year),
+}
+enum class SearchLength(val code: Int, val label: Int) {
+    Short(1, R.string.search_f_short), Medium(3, R.string.search_f_medium), Long(2, R.string.search_f_long),
+}
+enum class SearchOrder(val code: Int, val label: Int) {
+    Newest(2, R.string.search_f_newest), Views(3, R.string.search_f_views),
+}
+
 class SearchState(private val scope: CoroutineScope) {
     var query by mutableStateOf("")
     var submitted by mutableStateOf("")
@@ -559,22 +674,99 @@ class SearchState(private val scope: CoroutineScope) {
         private set
     var generation by mutableStateOf(0)
         private set
+    var date by mutableStateOf<SearchDate?>(null)
+        private set
+    var length by mutableStateOf<SearchLength?>(null)
+        private set
+    var order by mutableStateOf<SearchOrder?>(null)
+        private set
+    /** The next page of a filtered search (the plain search comes as one page). */
+    var next by mutableStateOf<String?>(null)
+        private set
     private var job: Job? = null
+
+    private val filtered get() = date != null || length != null || order != null
 
     fun submit() {
         val q = query.trim()
         if (q.isEmpty()) return
         SearchHistory.add(q)
+        run(q)
+    }
+
+    fun pick(value: SearchDate) { date = if (date == value) null else value; rerun() }
+    fun pick(value: SearchLength) { length = if (length == value) null else value; rerun() }
+    fun pick(value: SearchOrder) { order = if (order == value) null else value; rerun() }
+
+    private fun rerun() { if (submitted.isNotEmpty()) run(submitted) }
+
+    private fun run(q: String) {
         submitted = q
         loading = true
         error = null
+        next = null
         job?.cancel()
         job = scope.launch {
-            runCatching { YouTube.search(q) }
-                .onSuccess { results = it; generation++ }
+            runCatching {
+                if (filtered) InnerTube.search(q, InnerTube.searchParams(date?.code, length?.code, order?.code))
+                else FeedPage(YouTube.search(q), null)
+            }
+                .onSuccess { results = it.videos; next = it.next; generation++ }
                 .onFailure { error = YouTube.friendlyError(it) }
             loading = false
         }
+    }
+
+    fun loadMore() {
+        val token = next ?: return
+        if (loading) return
+        loading = true
+        val q = submitted
+        job = scope.launch {
+            runCatching { InnerTube.search(q, null, token) }
+                .onSuccess { page ->
+                    val seen = results.mapTo(HashSet()) { it.id }
+                    results = results + page.videos.filter { seen.add(it.id) }
+                    next = page.next
+                }
+                .onFailure { next = null }
+            loading = false
+        }
+    }
+}
+
+/** A filter chip: filled while it's on. */
+@Composable
+private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Text(
+        label,
+        color = if (selected) c.onPrimary else c.onSurface,
+        fontWeight = FontWeight.Bold,
+        fontSize = 13.sp,
+        maxLines = 1,
+        modifier = Modifier
+            .pressable(pressedScale = 0.95f, onClick = onClick)
+            .clip(CircleShape)
+            .background(if (selected) c.primary else c.surfaceContainerHigh)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}
+
+/** Upload date, length and order as one row under the search bar: every filter a single tap away. */
+@Composable
+private fun SearchFilterRow(state: SearchState) {
+    val c = MaterialTheme.colorScheme
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        items(SearchDate.values().toList(), key = { "d-" + it.name }) { FilterPill(stringResource(it.label), state.date == it) { state.pick(it) } }
+        item(key = "gap1") { Box(Modifier.padding(horizontal = 2.dp).size(width = 1.dp, height = 20.dp).background(c.outlineVariant)) }
+        items(SearchLength.values().toList(), key = { "l-" + it.name }) { FilterPill(stringResource(it.label), state.length == it) { state.pick(it) } }
+        item(key = "gap2") { Box(Modifier.padding(horizontal = 2.dp).size(width = 1.dp, height = 20.dp).background(c.outlineVariant)) }
+        items(SearchOrder.values().toList(), key = { "o-" + it.name }) { FilterPill(stringResource(it.label), state.order == it) { state.pick(it) } }
     }
 }
 
@@ -656,6 +848,10 @@ fun SearchScreen(state: SearchState, contentPadding: PaddingValues, onOpen: (Vid
             }
         }
         Spacer(Modifier.height(8.dp))
+        if (state.submitted.isNotEmpty()) {
+            SearchFilterRow(state)
+            Spacer(Modifier.height(8.dp))
+        }
         } },
     ) { top ->
         Box(Modifier.fillMaxSize()) {
@@ -691,6 +887,13 @@ fun SearchScreen(state: SearchState, contentPadding: PaddingValues, onOpen: (Vid
                 LaunchedEffect(state.generation) { list.scrollToItem(0) }
                 LazyColumn(state = list, contentPadding = contentPadding.withTop(top)) {
                 videoCards(state.results, columns, onOpen, firstFocus = firstResult)
+                // A filtered search pages on as the end comes into view.
+                if (state.next != null) item(key = "searchMore") {
+                    LaunchedEffect(state.results.size) { state.loadMore() }
+                    Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+                        CircularProgressIndicator(color = c.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
+                    }
+                }
             }
             }
         }

@@ -237,6 +237,9 @@ class LibraryData(scope: CoroutineScope, context: Context) {
     val home = FeedState(scope, prefetchTop = 2, freshOnRefresh = true) { InnerTube.home(it) }
     val subscriptions = FeedState(scope, prefetchTop = 2) { InnerTube.subscriptionsFeed(it) }
     val history = FeedState(scope) { InnerTube.history(it) }
+    /** The Library's Watch later and Liked videos rows (their full lists open as playlists). */
+    val watchLater = FeedState(scope) { InnerTube.playlist("WL", it) }
+    val liked = FeedState(scope) { InnerTube.playlist("LL", it) }
     private val prefs = context.getSharedPreferences(CHANNELS_PREFS, Context.MODE_PRIVATE)
     var channels by mutableStateOf(readChannels())
         private set
@@ -284,7 +287,7 @@ class LibraryData(scope: CoroutineScope, context: Context) {
     fun playlistFeed(id: String) = FeedState(scope) { InnerTube.playlist(id, it) }
 
     fun reset() {
-        home.reset(); subscriptions.reset(); history.reset()
+        home.reset(); subscriptions.reset(); history.reset(); watchLater.reset(); liked.reset()
         channelsJob?.cancel(); channelsJob = null; subscriptionsShown = false
         channels = emptyList(); playlists = emptyList()
         prefs.edit().remove(KEY_CHANNELS).apply()

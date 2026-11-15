@@ -307,6 +307,34 @@ object InnerTube {
 
     // ── Reads ──────────────────────────────────────────────────────────────────
 
+    /**
+     * A search with YouTube's own filters ([params] is its `sp` value, see [searchParams]); [next] a page on.
+     * Works signed out too. Only videos come back (the same cards every other list reads).
+     */
+    suspend fun search(query: String, params: String?, next: String? = null): FeedPage = withContext(Dispatchers.IO) {
+        val body = if (next != null) JSONObject().put("continuation", next)
+        else JSONObject().put("query", query).apply { if (params != null) put("params", params) }
+        parseFeed(postAny("search", body))
+    }
+
+    /**
+     * The `sp` filter value for a search: a small protobuf (sort, then a message of upload date, type and
+     * length), base64. Type is always "video". Codes: date 1 hour · 2 today · 3 week · 4 month · 5 year;
+     * length 1 under 4 min · 3 four to twenty · 2 over twenty; sort 2 newest · 3 most viewed.
+     */
+    fun searchParams(date: Int?, length: Int?, sort: Int?): String {
+        val filters = java.io.ByteArrayOutputStream()
+        if (date != null) { filters.write(0x08); filters.write(date) }
+        filters.write(0x10); filters.write(0x01)
+        if (length != null) { filters.write(0x18); filters.write(length) }
+        val inner = filters.toByteArray()
+        val out = java.io.ByteArrayOutputStream()
+        if (sort != null) { out.write(0x08); out.write(sort) }
+        out.write(0x12); out.write(inner.size)
+        out.write(inner, 0, inner.size)
+        return android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+    }
+
     suspend fun browse(browseId: String, continuation: String? = null): FeedPage = withContext(Dispatchers.IO) {
         val body = if (continuation != null) JSONObject().put("continuation", continuation) else JSONObject().put("browseId", browseId)
         parseFeed(post("browse", body))

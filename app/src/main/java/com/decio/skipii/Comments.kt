@@ -69,6 +69,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.stickyHeader
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -128,6 +135,7 @@ class CommentsState(private val scope: CoroutineScope) {
     var sortTokens by mutableStateOf<List<String>>(emptyList())
         private set
     var newestFirst by mutableStateOf(false)
+        private set
         private set
     private var next: String? = null
     val hasMore get() = next != null
@@ -392,7 +400,7 @@ fun CommentsPanel(state: CommentsState, partialTop: Dp, onClose: () -> Unit) {
         }
         LaunchedEffect(nearEnd) { if (nearEnd) state.loadMore() }
         LazyColumn(state = list, modifier = listModifier) {
-            items(state.comments, key = { it.id }) { comment -> CommentRow(comment, state) }
+            commentThreads(state, sticky = true, keyPrefix = "", background = c.surfaceContainerLow)
             if (state.loading || state.hasMore) item {
                 Box(Modifier.fillMaxWidth().padding(20.dp), Alignment.Center) {
                     CircularProgressIndicator(color = c.primary, strokeWidth = 3.dp, modifier = Modifier.size(26.dp))
@@ -578,7 +586,7 @@ fun LazyListScope.inlineComments(state: CommentsState) {
     if (Account.signedIn && !state.disabled) item(key = "commentsComposer") {
         Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).clip(RoundedCornerShape(26.dp))) { Composer(state) }
     }
-    items(state.comments, key = { "comment-" + it.id }) { comment -> CommentRow(comment, state) }
+    commentThreads(state, sticky = false, keyPrefix = "comment-", background = Color.Transparent)
     when {
         state.loading || state.hasMore -> item(key = "commentsMore") {
             // Composed as it nears the screen: that's the cue for the next page.
@@ -671,7 +679,17 @@ private class TapCounter {
 private const val TapWindowMs = 300L
 
 @Composable
-private fun CommentRow(comment: Comment, state: CommentsState, isReply: Boolean = false) {
+private fun CommentRow(
+    comment: Comment,
+    state: CommentsState,
+    isReply: Boolean = false,
+    /** The last reply of a thread: its guide line ends in the elbow instead of running on. */
+    isLast: Boolean = false,
+    /** The comment whose replies are open beneath it: a guide line runs down from its avatar. */
+    threadOpen: Boolean = false,
+    /** Pinned at the top while its replies scroll: the text is held to a few lines so it never fills the sheet. */
+    compact: Boolean = false,
+) {
     val c = MaterialTheme.colorScheme
     val haptic = LocalHapticFeedback.current
     val tapScope = rememberCoroutineScope()
@@ -705,6 +723,30 @@ private fun CommentRow(comment: Comment, state: CommentsState, isReply: Boolean 
                     }
                 }
             }
+            // Reddit-style guide: a line from the parent's avatar down the replies, with an elbow into each one.
+            .then(
+                if (isReply || threadOpen) {
+                    val guide = c.outlineVariant
+                    Modifier.drawBehind {
+                        val x = 38.dp.toPx()
+                        val width = 1.5.dp.toPx()
+                        if (threadOpen) {
+                            drawLine(guide, Offset(x, 50.dp.toPx()), Offset(x, size.height), strokeWidth = width, cap = StrokeCap.Round)
+                        } else {
+                            val cy = 24.dp.toPx()
+                            val r = 12.dp.toPx()
+                            if (isLast) drawLine(guide, Offset(x, 0f), Offset(x, cy - r), strokeWidth = width, cap = StrokeCap.Round)
+                            else drawLine(guide, Offset(x, 0f), Offset(x, size.height), strokeWidth = width, cap = StrokeCap.Round)
+                            val elbow = Path().apply {
+                                moveTo(x, cy - r)
+                                quadraticBezierTo(x, cy, x + r, cy)
+                                lineTo(58.dp.toPx(), cy)
+                            }
+                            drawPath(elbow, guide, style = Stroke(width = width, cap = StrokeCap.Round))
+                        }
+                    }
+                } else Modifier,
+            )
             .padding(start = if (isReply) 62.dp else 20.dp, end = 20.dp, top = 10.dp, bottom = 6.dp),
     ) {
         ChannelAvatar(comment.avatar, comment.author, size = if (isReply) 28 else 36)
@@ -716,7 +758,11 @@ private fun CommentRow(comment: Comment, state: CommentsState, isReply: Boolean 
                 displayAge(comment.ago)?.let { Text(it, color = c.onSurfaceVariant, fontSize = 12.sp, maxLines = 1) }
             }
             Spacer(Modifier.height(3.dp))
-            Text(comment.text, fontSize = 14.sp, lineHeight = 20.sp)
+            Text(
+                comment.text, fontSize = 14.sp, lineHeight = 20.sp,
+                maxLines = if (compact) 3 else Int.MAX_VALUE,
+                overflow = if (compact) TextOverflow.Ellipsis else TextOverflow.Clip,
+            )
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Like (signed in): pops like the video's like, and the count follows.
@@ -778,7 +824,29 @@ private fun CommentRow(comment: Comment, state: CommentsState, isReply: Boolean 
             }
         }
     }
-    if (!isReply) {
-        state.replies[comment.id]?.forEach { reply -> CommentRow(reply, state, isReply = true) }
+}
+
+/**
+ * Every comment, each followed by its replies once opened. With [sticky] (the sheet), a comment whose replies
+ * are open stays pinned at the top of the list while they scroll past, so "Hide replies" is always in reach.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+private fun LazyListScope.commentThreads(state: CommentsState, sticky: Boolean, keyPrefix: String, background: Color) {
+    state.comments.forEach { comment ->
+        val replies = state.replies[comment.id]
+        if (replies == null) {
+            item(key = keyPrefix + comment.id) { CommentRow(comment, state) }
+        } else {
+            if (sticky) {
+                stickyHeader(key = keyPrefix + comment.id) {
+                    Box(Modifier.fillMaxWidth().background(background)) { CommentRow(comment, state, threadOpen = true, compact = true) }
+                }
+            } else {
+                item(key = keyPrefix + comment.id) { CommentRow(comment, state, threadOpen = true) }
+            }
+            itemsIndexed(replies, key = { _, reply -> keyPrefix + "reply-" + reply.id }) { index, reply ->
+                CommentRow(reply, state, isReply = true, isLast = index == replies.lastIndex)
+            }
+        }
     }
 }

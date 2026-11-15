@@ -181,4 +181,16 @@
     <string name="ui_home_fresh_line" translatable="false">Off: Home shows what YouTube picked for you, in its own order. On: a refresh reads further into YouTube\'s list for videos you haven\'t seen yet.</string>
     <string name="ui_history_all" translatable="false">Show all</string>
     <string name="ui_history_less" translatable="false">Show less</string>
+    <string name="search_f_today" translatable="false">Today</string>
+    <string name="search_f_week" translatable="false">This week</string>
+    <string name="search_f_month" translatable="false">This month</string>
+    <string name="search_f_year" translatable="false">This year</string>
+    <string name="search_f_short" translatable="false">Under 4 min</string>
+    <string name="search_f_medium" translatable="false">4–20 min</string>
+    <string name="search_f_long" translatable="false">Over 20 min</string>
+    <string name="search_f_newest" translatable="false">Newest</string>
+    <string name="search_f_views" translatable="false">Most viewed</string>
+    <string name="ui_history_search_hint" translatable="false">Search your history</string>
+    <string name="ui_history_no_match" translatable="false">Nothing in your history matches that.</string>
+    <string name="ui_row_empty" translatable="false">Nothing here yet</string>
 </resources>
