@@ -17,15 +17,16 @@ android {
     }
 
     signingConfigs {
+        create("release") {
         // The release key lives in the repo's GitHub secrets (see .github/workflows/build.yml), never in the
         // code. Without it (a local build, say) the debug key signs instead, so the build never breaks.
-        val keystore = System.getenv("SUTUBE_KEYSTORE_FILE")
-        if (keystore != null && java.io.File(keystore).exists()) {
-            create("sutube") {
-                storeFile = java.io.File(keystore)
-                storePassword = System.getenv("SUTUBE_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("SUTUBE_KEY_ALIAS")
-                keyPassword = System.getenv("SUTUBE_KEY_PASSWORD")
+            val keystore = System.getenv("KEYSTORE_BASE64")
+            val keystoreFile = keystore?.let { file(it) }
+            if (keystoreFile != null && keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
             }
         }
     }
