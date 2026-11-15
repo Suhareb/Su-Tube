@@ -740,7 +740,7 @@ class SearchState(private val scope: CoroutineScope) {
 private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     Text(
-        label,
+        text = label,
         color = if (selected) c.onPrimary else c.onSurface,
         fontWeight = FontWeight.Bold,
         fontSize = 13.sp,
