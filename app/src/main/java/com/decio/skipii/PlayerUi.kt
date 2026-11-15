@@ -107,12 +107,14 @@ private const val StatusBlackFromUp = 0.25f
 private const val StatusBlackEnd = 0.9f
 internal val StageSideGap = 0.dp
 internal val StageRadius = 0.dp
-internal val MiniHeight = 70.dp
-internal val MiniRadius = 24.dp
-internal val MiniThumbStart = 7.dp
-internal val MiniThumbWidth = 92.dp
-internal val MiniThumbHeight = 52.dp
-internal val MiniThumbRadius = 17.dp
+// The mini-player is a small floating window that is only the video (with its buttons over it),
+// so the card and the thumbnail are the same rectangle.
+internal val MiniHeight = 112.dp
+internal val MiniRadius = 18.dp
+internal val MiniThumbStart = 0.dp
+internal val MiniThumbWidth = 200.dp
+internal val MiniThumbHeight = 112.dp
+internal val MiniThumbRadius = 18.dp
 /**
  * The portrait video takes the video's own shape (Derek, 2026-10-10: no black bars), from
  * 4:5 for tall videos to 2.4:1 for wide ones; anything beyond fits inside with bars.
@@ -398,7 +400,6 @@ fun PlayerScreen(
         if (interactive) BottomGestureGuard(Modifier.align(Alignment.BottomCenter))
         // The mini-player's title and buttons travel with the shrinking video and fade in as
         // it lands, so the page turns into the mini-player rather than flying to one.
-        MorphingMiniDetails(state, morph)
 
         // Comments open as a panel whose top sits just under the video. Swiping the player down
         // takes it along like the details (under the video's bottom edge, fading out), and it's
@@ -827,33 +828,54 @@ fun MiniPlayer(state: PlayerState, onExpand: () -> Unit, modifier: Modifier = Mo
     val shape = RoundedCornerShape(MiniRadius)
     Box(
         modifier = modifier
-            .fillMaxWidth()
-            .height(MiniHeight)
+            .size(width = MiniThumbWidth, height = MiniThumbHeight)
             .pressable(pressedScale = 0.98f, onClick = onExpand)
-            .shadow(16.dp, shape, ambientColor = Color.Black.copy(alpha = 0.12f), spotColor = Color.Black.copy(alpha = 0.18f))
+            .shadow(14.dp, shape, ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.28f))
             .clip(shape)
-            .background(c.surfaceContainerHighest)
+            .background(Color.Black),
     ) {
-        Row(Modifier.fillMaxSize().padding(start = MiniThumbStart, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            // The live video, not a still. While the player is open or morphing, this slot
-            // stays EMPTY: the shrinking video is on its way here, and a thumbnail already
-            // sitting in the slot read as a second copy it was flying towards.
-            Box(Modifier.size(width = MiniThumbWidth, height = MiniThumbHeight).clip(RoundedCornerShape(MiniThumbRadius))) {
-                if (showVideo) {
-                    Box(Modifier.fillMaxSize().background(Color.Black))
-                    Thumbnail(item.thumbnail, Modifier.fillMaxSize(), radius = 0)
-                    // The player's stage, centre-cropped to the slot (as the morph's small end
-                    // shows it), with the video fitted inside: never stretched.
-                    // Audio only: there is no picture, the thumbnail stands in.
-                    if (!AudioOnly.enabled) {
-                        Box(Modifier.fillMaxSize().aspectFit(state.stageAspect, cover = true)) {
-                            LocalVideoSurface.current(Modifier.fillMaxSize().aspectFit(state.videoAspect).hideStaleVideo(state))
-                        }
-                    }
+        // The live video, not a still. While the player is open or morphing, this slot
+        // stays EMPTY: the shrinking video is on its way here, and a thumbnail already
+        // sitting in the slot read as a second copy it was flying towards.
+        if (showVideo) {
+            Thumbnail(item.thumbnail, Modifier.fillMaxSize(), radius = 0)
+            // The player's stage, centre-cropped to the window (as the morph's small end
+            // shows it), with the video fitted inside: never stretched.
+            // Audio only: there is no picture, the thumbnail stands in.
+            if (!AudioOnly.enabled) {
+                Box(Modifier.fillMaxSize().aspectFit(state.stageAspect, cover = true)) {
+                    LocalVideoSurface.current(Modifier.fillMaxSize().aspectFit(state.videoAspect).hideStaleVideo(state))
                 }
             }
-            Spacer(Modifier.width(12.dp))
-            MiniDetails(state, interactive = true)
+        }
+        // A soft scrim, so the buttons read on any picture.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent, Color.Black.copy(alpha = 0.5f))),
+            ),
+        )
+        Box(Modifier.align(Alignment.Center)) {
+            MorphPlayButton(
+                playing = state.isPlaying,
+                buffering = state.isBuffering,
+                size = 42.dp,
+                container = Color.Black.copy(alpha = 0.5f),
+                content = Color.White,
+                onClick = state::togglePlay,
+            )
+        }
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(5.dp).size(30.dp)
+                .pressable(onClick = state::close)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Rounded.Close, stringResource(R.string.player_close), tint = Color.White, modifier = Modifier.size(18.dp))
+        }
+        val progress = if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
+        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color.White.copy(alpha = 0.3f))) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(progress).background(c.primary))
         }
     }
 }

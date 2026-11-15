@@ -3,6 +3,7 @@ package com.decio.skipii
 import android.Manifest
 import android.content.Intent
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import android.content.pm.PackageManager
@@ -1006,6 +1007,7 @@ private fun entries(): List<Entry> = buildList {
     add(Entry(ap, "mode", str(R.string.settings_mode), listOf(str(R.string.ui_mode_system), str(R.string.ui_mode_light), str(R.string.ui_mode_dark))))
     add(Entry(ap, "amoled", str(R.string.settings_amoled_title), listOf(str(R.string.settings_amoled_line), "AMOLED", "OLED")))
     add(Entry(ap, "font", str(R.string.ui_font_title), listOf(str(R.string.ui_font_line), "ttf", "otf", "typeface")))
+    add(Entry(ap, "home_fresh", str(R.string.ui_home_fresh_title), listOf(str(R.string.ui_home_fresh_line), "home", "feed", "algorithm", "recommendations")))
     add(Entry(ap, "theme", str(R.string.settings_theme), listOf(str(R.string.ui_theme_wallpaper)) + SKIPII_THEMES.map { it.name }))
     add(Entry(SettingsPage.Language, "lang", str(R.string.language_title), AppLanguage.choices.map { it.name } + str(R.string.language_phone)))
     val nt = SettingsPage.Notifications
@@ -1615,6 +1617,13 @@ private fun AppearancePage() {
         }
     }
     Note(fontNote ?: stringResource(R.string.ui_font_note))
+    Spacer(Modifier.height(14.dp))
+    Joined(1) { _, shape ->
+        SwitchSetting(
+            "home_fresh", shape, stringResource(R.string.ui_home_fresh_title), stringResource(R.string.ui_home_fresh_line),
+            HomeFeed.deepRefresh, icon = Icons.Rounded.Refresh,
+        ) { HomeFeed.choose(it) }
+    }
 }
 
 @Composable

@@ -73,6 +73,11 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -197,6 +202,8 @@ enum class Tab(@StringRes val labelRes: Int, val icon: ImageVector, val selected
 // The mini-player floats 8 dp above the nav pill (NavBar.kt), capped at 368 dp, centered.
 private val MiniWidth = 368.dp
 private val MiniGap = 8.dp
+/** The floating mini-player keeps this far from the screen's sides. */
+private val MiniEdge = 12.dp
 
 @Composable
 fun SkipiiApp() {
@@ -310,9 +317,9 @@ fun SkipiiApp() {
     val hasMini = player.current != null && tab != Tab.Shorts
     // Lists scroll fully clear of the floating nav (and mini-player when present). A wide window
     // has the rail instead of the nav; only the mini-player card (bottom right) needs clearing.
-    val contentPadding = if (wide) PaddingValues(bottom = stackBottom + (if (hasMini) MiniHeight + MiniGap else 0.dp) + 16.dp)
+    val contentPadding = if (wide) PaddingValues(bottom = stackBottom + 0.dp + 16.dp)
     else PaddingValues(
-        bottom = stackBottom + NavHeight + (if (hasMini) MiniHeight + MiniGap else 0.dp) + 16.dp,
+        bottom = stackBottom + NavHeight + 0.dp + 16.dp,
     )
     // On a wide window the pages start right of the rail (none on Shorts: a short takes the whole height).
     val railStart = WindowInsets.safeDrawing.only(WindowInsetsSides.Start).asPaddingValues().calculateStartPadding(LayoutDirection.Ltr)
@@ -477,6 +484,12 @@ fun SkipiiApp() {
     SideEffect { shorts.cover(tab == Tab.Shorts && openChannel != null) }
     BackHandler(enabled = tab == Tab.Shorts && shorts.channelMenu) { shorts.channelMenu = false }
 
+    // The floating mini-player's resting place: which side, and how far down (a share of the window's
+    // height; negative = the default spot, just above the tab bar). The drag offsets are the live finger.
+    var miniRight by rememberSaveable { mutableStateOf(true) }
+    var miniTopShare by rememberSaveable { mutableStateOf(-1f) }
+    val miniDragX = remember { androidx.compose.animation.core.Animatable(0f) }
+    val miniDragY = remember { androidx.compose.animation.core.Animatable(0f) }
     BoxWithConstraints(Modifier.fillMaxSize().background(c.surface)) {
         // The open player's shape on this window (PlayerUi.kt): the phone page, or on a wide window
         // Rail 3 — beside the rail on a tablet; across the whole screen, split at the fold, on an
@@ -498,21 +511,20 @@ fun SkipiiApp() {
         SideEffect { player.stageFloor = stageFloor }
         // Both ends of the morph, from the same constants the mini-player and player use.
         val stageAspect = player.stageAspect
-        val geometry = remember(constraints.maxWidth, constraints.maxHeight, stackBottom, statusTop, density, stageAspect, wide, playerStart, stageWidth, endInset) {
+        val geometry = remember(constraints.maxWidth, constraints.maxHeight, stackBottom, statusTop, density, stageAspect, wide, playerStart, stageWidth, endInset, miniRight, miniTopShare) {
             with(density) {
                 // In the player's own space (it starts [playerStart] in on a tablet).
                 val left = playerStart.toPx()
                 val w = constraints.maxWidth.toFloat() - left
                 val h = constraints.maxHeight.toFloat()
-                // Wide: the mini-player is a card in the bottom-right corner (no tab pill under it).
-                val miniBottom = if (wide) h - stackBottom.toPx() else h - (stackBottom + NavHeight + MiniGap).toPx()
-                val miniW = minOf(w - 32.dp.toPx(), MiniWidth.toPx())
-                val miniLeft = if (wide) w - (16.dp + endInset).toPx() - miniW else (w - miniW) / 2f
-                val miniCard = Rect(miniLeft, miniBottom - MiniHeight.toPx(), miniLeft + miniW, miniBottom)
-                val thumb = Rect(
-                    Offset(miniCard.left + MiniThumbStart.toPx(), miniCard.top + (MiniHeight - MiniThumbHeight).toPx() / 2f),
-                    Size(MiniThumbWidth.toPx(), MiniThumbHeight.toPx()),
-                )
+                // The floating mini-player's resting rectangle (one rectangle: the card is just the video).
+                val mw = MiniThumbWidth.toPx()
+                val mh = MiniThumbHeight.toPx()
+                val edge = MiniEdge.toPx()
+                val lowestBottom = if (wide) h - stackBottom.toPx() else h - (stackBottom + NavHeight + MiniGap).toPx()
+                val rest = miniRest(miniRight, miniTopShare, w, h, mw, mh, edge, edge + (if (wide) endInset.toPx() else 0f), lowestBottom, (statusTop + 72.dp).toPx())
+                val miniCard = Rect(rest.x, rest.y, rest.x + mw, rest.y + mh)
+                val thumb = miniCard
                 val side = StageSideGap.toPx()
                 val stageTop = (statusTop + StageTopGap).toPx()
                 val sw = stageWidth.toPx()
@@ -643,55 +655,85 @@ fun SkipiiApp() {
         BottomGestureGuard(Modifier.align(Alignment.BottomCenter))
 
         if (hasMini) {
-            // Swipe up expands (the morph); swipe down follows the finger and, past a
-            // threshold or with a flick, slides the mini-player away and stops playback.
-            val dismiss = remember { androidx.compose.animation.core.Animatable(0f) }
-            LaunchedEffect(player.current?.id) { dismiss.snapTo(0f) }
-            val dismissDistance = with(density) { 56.dp.toPx() }
+            // A floating window: drag it anywhere and it settles on the nearer side. Flick it down (or drag
+            // it down past the tab bar) to close it; tap it, or flick it up, to open the player.
+            val playerStartPx = with(density) { playerStart.toPx() }
+            val mw = with(density) { MiniThumbWidth.toPx() }
+            val mh = with(density) { MiniThumbHeight.toPx() }
+            val edge = with(density) { MiniEdge.toPx() }
+            val rootW = constraints.maxWidth.toFloat()
+            val w = rootW - playerStartPx
+            val h = constraints.maxHeight.toFloat()
+            val lowestBottom = with(density) { if (wide) h - stackBottom.toPx() else h - (stackBottom + NavHeight + MiniGap).toPx() }
+            val rightEdge = edge + with(density) { if (wide) endInset.toPx() else 0f }
+            val topLimit = with(density) { (statusTop + 72.dp).toPx() }
+            val rest = miniRest(miniRight, miniTopShare, w, h, mw, mh, edge, rightEdge, lowestBottom, topLimit)
+            val restX = rest.x + playerStartPx
+            val restY = rest.y
+            val lowestY = miniRest(miniRight, -1f, w, h, mw, mh, edge, rightEdge, lowestBottom, topLimit).y
+            val tracker = remember { VelocityTracker() }
+            LaunchedEffect(player.current?.id) { miniDragX.snapTo(0f); miniDragY.snapTo(0f) }
+            // Finger up: the window goes to the nearer side (a flick carries it a little further) and
+            // glides there from where it was let go.
+            val settle = { x: Float, y: Float, vx: Float ->
+                val toRight = x + mw / 2f + vx * 0.12f > playerStartPx + w / 2f
+                val nearLowest = y >= lowestY - edge
+                val share = if (nearLowest) -1f else (y / h).coerceIn(0f, 1f)
+                val next = miniRest(toRight, share, w, h, mw, mh, edge, rightEdge, lowestBottom, topLimit)
+                val dx = x - (next.x + playerStartPx)
+                val dy = y - next.y
+                miniRight = toRight
+                miniTopShare = share
+                scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { miniDragX.snapTo(dx); miniDragY.snapTo(dy) }
+                scope.launch { miniDragX.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 400f)) }
+                scope.launch { miniDragY.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 400f)) }
+            }
             MiniPlayer(
                 player,
                 onExpand = { player.expanded = true },
                 showVideo = !showPlayer && !showFullscreen,
                 modifier = Modifier
-                    // Wide: a card in the bottom-right corner (no tab pill under it; the rail has the tabs).
-                    .align(if (wide) Alignment.BottomEnd else Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp + if (wide) endInset else 0.dp, bottom = if (wide) stackBottom else stackBottom + NavHeight + MiniGap)
-                    .widthIn(max = MiniWidth)
-                    // Fades as the video grows out of it; slides and fades as it's dismissed.
+                    .align(Alignment.TopStart)
+                    .offset { IntOffset((restX + miniDragX.value).roundToInt(), (restY + miniDragY.value).roundToInt()) }
                     .graphicsLayer {
-                        translationY = dismiss.value + settingsAway * (MiniHeight + MiniGap + NavHeight + stackBottom + 24.dp).toPx()
-                        // Hidden for the whole morph: the shrinking page draws the mini-player
-                        // itself (it stays touchable underneath, so taps still work mid-collapse).
-                        alpha = (if (showPlayer) 0f else 1f) * (1f - (dismiss.value / (dismissDistance * 1.6f)).coerceIn(0f, 1f)) * (1f - settingsAway)
+                        // Settings open: it sinks out of sight with the tab bar. Hidden for the whole morph:
+                        // the shrinking page draws the mini-player itself (it stays touchable underneath).
+                        translationY = settingsAway * (size.height + 96.dp.toPx())
+                        val past = (restY + miniDragY.value - lowestY) / mh
+                        alpha = (if (showPlayer) 0f else 1f) * (1f - past.coerceIn(0f, 1f)) * (1f - settingsAway)
                     }
-                    .draggable(
-                        state = rememberDraggableState { delta ->
-                            // Once a gesture drives the morph it stays on the morph: switching to
-                            // the dismiss slide mid-gesture (up a little, then back down) never
-                            // settled the morph, which then stayed "dragging" at its mini end —
-                            // a dead mini-player and live player-bar buttons under the tabs.
-                            if (!morph.dragging && morph.progress.value <= 0f && (delta > 0f || dismiss.value > 0f)) {
-                                scope.launch { dismiss.snapTo((dismiss.value + delta).coerceAtLeast(0f)) }
-                            } else {
-                                morph.dragBy(delta)
-                            }
-                        },
-                        orientation = Orientation.Vertical,
-                        onDragStopped = { velocity ->
-                            if (morph.dragging) {
-                                morph.settle(velocity, reduced)
-                            } else if (dismiss.value > 0f) {
-                                if (dismiss.value > dismissDistance || velocity > 800f) {
-                                    scope.launch {
-                                        if (!reduced) dismiss.animateTo(dismissDistance * 2.2f, tween(200, easing = Motion.Emphasized))
+                    .pointerInput(restX, restY, miniRight, miniTopShare) {
+                        var total = Offset.Zero
+                        detectDragGestures(
+                            onDragStart = { total = Offset.Zero; tracker.resetTracking() },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                total += amount
+                                tracker.addPosition(change.uptimeMillis, total)
+                                scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                    val x = (restX + miniDragX.value + amount.x).coerceIn(0f, (rootW - mw).coerceAtLeast(0f))
+                                    val y = (restY + miniDragY.value + amount.y).coerceIn(topLimit, h)
+                                    miniDragX.snapTo(x - restX)
+                                    miniDragY.snapTo(y - restY)
+                                }
+                            },
+                            onDragEnd = {
+                                val v = tracker.calculateVelocity()
+                                val x = restX + miniDragX.value
+                                val y = restY + miniDragY.value
+                                val vertical = abs(v.y) > abs(v.x)
+                                when {
+                                    (vertical && v.y > 1800f) || y > lowestY + mh * 0.45f -> scope.launch {
+                                        if (!reduced) miniDragY.animateTo(miniDragY.value + mh * 1.5f, tween(180, easing = Motion.Emphasized))
                                         player.close()
                                     }
-                                } else {
-                                    scope.launch { dismiss.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 600f)) }
+                                    vertical && v.y < -1800f -> { settle(x, y, 0f); player.expanded = true }
+                                    else -> settle(x, y, v.x)
                                 }
-                            }
-                        },
-                    ),
+                            },
+                            onDragCancel = { settle(restX + miniDragX.value, restY + miniDragY.value, 0f) },
+                        )
+                    },
             )
         }
 
@@ -838,7 +880,7 @@ fun SkipiiApp() {
         player.playlistTarget?.let { video -> SaveToPlaylistSheet(player, video, maxHeight = maxHeight - panelRestTop(player)) }
         // Confirmations ("Added to queue") when the full player isn't showing its own.
         if (!showPlayer) {
-            QueueMessage(player, Modifier.align(Alignment.BottomCenter).padding(bottom = stackBottom + NavHeight + (if (hasMini) MiniHeight + MiniGap else 0.dp) + 12.dp))
+            QueueMessage(player, Modifier.align(Alignment.BottomCenter).padding(bottom = stackBottom + NavHeight + 0.dp + 12.dp))
         }
         // Picture-in-picture: the window is just the video, over everything (kept composed
         // underneath, so expanding returns to exactly where things were).
@@ -898,4 +940,20 @@ internal fun linkedVideo(intent: Intent?): VideoItem? {
         thumbnail = "https://i.ytimg.com/vi/$id/hqdefault.jpg", avatar = null,
         durationSec = 0, views = 0, uploaded = null,
     )
+}
+
+
+/**
+ * Where the floating mini-player rests, in the player's own space: on the right or left side, [share] of the
+ * window's height down (negative: as low as it goes, just above the tab bar). Never above [top] nor below
+ * [lowestBottom].
+ */
+private fun miniRest(
+    right: Boolean, share: Float, w: Float, h: Float, mw: Float, mh: Float,
+    edge: Float, rightEdge: Float, lowestBottom: Float, top: Float,
+): Offset {
+    val x = if (right) w - rightEdge - mw else edge
+    val lowest = (lowestBottom - mh).coerceAtLeast(top)
+    val y = (if (share < 0f) lowest else share * h).coerceIn(top, lowest)
+    return Offset(x, y)
 }

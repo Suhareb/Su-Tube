@@ -22,6 +22,7 @@ class SkipiiApplication : Application(), ImageLoaderFactory {
         org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor.setFetchIosClient(false)
         ThemeSettings.init(this)
         AppFont.init(this)
+        HomeFeed.init(this)
         QualityPreference.init(this)
         PlaybackSpeed.init(this)
         AudioOnly.init(this)

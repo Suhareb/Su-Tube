@@ -35,6 +35,9 @@ import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.WatchLater
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
@@ -354,6 +357,9 @@ fun LibraryScreen(
     scrollToTop: Int = 0,
 ) {
     val signedIn = Account.signedIn
+    // The history row expanded into the whole list ("Show all").
+    var historyOpen by rememberSaveable { mutableStateOf(false) }
+    val columns = gridColumns()
     LaunchedEffect(signedIn) {
         if (signedIn) {
             lib.history.ensureLoaded()
@@ -385,8 +391,37 @@ fun LibraryScreen(
                 }
                 return@LazyColumn
             }
-            item(key = "historyTitle") { SectionTitle(stringResource(R.string.ui_history)) }
-            item(key = "history") {
+            item(key = "historyTitle") {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    SectionTitle(stringResource(R.string.ui_history), Modifier.weight(1f))
+                    if (lib.history.videos.isNotEmpty()) {
+                        val c = MaterialTheme.colorScheme
+                        Row(
+                            Modifier.padding(end = 12.dp, top = 12.dp)
+                                .pressable(pressedScale = 0.95f) { historyOpen = !historyOpen }
+                                .clip(CircleShape)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                stringResource(if (historyOpen) R.string.ui_history_less else R.string.ui_history_all),
+                                color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                            )
+                            Icon(if (historyOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+            // Expanded: the whole history as a list of cards that keeps loading as it's scrolled.
+            if (historyOpen && lib.history.videos.isNotEmpty()) {
+                videoCards(lib.history.videos.distinctBy { it.id }, columns, onOpen)
+                if (lib.history.hasMore || lib.history.loading) item(key = "historyMore") {
+                    LaunchedEffect(lib.history.videos.size) { lib.history.loadMore() }
+                    Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
+                    }
+                }
+            } else item(key = "history") {
                 val history = lib.history.videos
                 when {
                     history.isNotEmpty() -> LazyRow(

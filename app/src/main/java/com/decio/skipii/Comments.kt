@@ -129,6 +129,7 @@ class CommentsState(private val scope: CoroutineScope) {
         private set
     var newestFirst by mutableStateOf(false)
         private set
+        private set
     private var next: String? = null
     val hasMore get() = next != null
 

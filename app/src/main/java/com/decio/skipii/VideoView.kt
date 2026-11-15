@@ -30,6 +30,9 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -1087,8 +1090,12 @@ fun Modifier.aspectFit(aspect: Float, cover: Boolean = false) = layout { measura
 fun FullscreenPlayer(state: PlayerState, onExit: () -> Unit) {
     val reduced = rememberReducedMotion()
     var drag by remember { mutableStateOf(0f) }
-    // Up/down on the left = brightness, on the right = volume; the middle swipes down to exit.
+    // Up/down on the left = brightness, on the right = volume; the middle swipes down to exit,
+    // and up to bring in the recommendations (a row of videos along the bottom).
     val sliders = rememberFullscreenSliders()
+    var recommendations by remember { mutableStateOf(false) }
+    val hasRecommendations = state.details?.related?.isNotEmpty() == true
+    BackHandler(enabled = recommendations) { recommendations = false }
     Box(Modifier.fillMaxSize()) {
         VideoContent(
             state = state,
@@ -1097,13 +1104,68 @@ fun FullscreenPlayer(state: PlayerState, onExit: () -> Unit) {
             onToggleFullscreen = onExit,
             modifier = Modifier
                 .fillMaxSize()
-                .fullscreenGestures(sliders, onPull = { drag = it }, onSwipeDown = onExit)
+                .fullscreenGestures(
+                    sliders,
+                    onPull = { drag = it },
+                    onSwipeDown = { if (recommendations) recommendations = false else onExit() },
+                    onSwipeUp = { if (hasRecommendations) recommendations = true },
+                )
                 .graphicsLayer {
                     // A little give while dragging, so the gesture is visibly being heard.
                     translationY = if (reduced) 0f else drag * 0.35f
                 },
         )
         SliderLevel(sliders)
+        RecommendationsRow(state, open = recommendations && hasRecommendations, onClose = { recommendations = false })
+    }
+}
+
+/**
+ * Fullscreen's recommendations: swipe up from the middle of the video and the videos YouTube suggests
+ * slide in along the bottom as a row to scroll sideways. A tap on one plays it; a tap anywhere else,
+ * a swipe down or Back puts the row away.
+ */
+@Composable
+private fun BoxScope.RecommendationsRow(state: PlayerState, open: Boolean, onClose: () -> Unit) {
+    val reduced = rememberReducedMotion()
+    val shown by animateFloatAsState(
+        targetValue = if (open) 1f else 0f,
+        animationSpec = if (reduced) tween(0) else tween(if (open) 320 else 220, easing = Motion.Emphasized),
+        label = "recommendations",
+    )
+    if (shown <= 0f) return
+    val related = state.details?.related.orEmpty()
+    // A tap on the picture behind the row closes it.
+    Box(
+        Modifier.fillMaxSize()
+            .graphicsLayer { alpha = shown }
+            .background(Color.Black.copy(alpha = 0.35f))
+            .pointerInput(Unit) { detectTapGestures { onClose() } },
+    )
+    LazyRow(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .graphicsLayer {
+                translationY = (1f - shown) * size.height
+                alpha = shown
+            }
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.88f))))
+            .windowInsetsPadding(WindowInsets.displayCutout)
+            .padding(top = 40.dp, bottom = 20.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(related, key = { it.id }) { video ->
+            Column(
+                Modifier.width(188.dp).pressable(pressedScale = 0.97f) { state.open(video); onClose() },
+            ) {
+                Thumbnail(video.thumbnail, Modifier.fillMaxWidth().aspectRatio(16f / 9f), radius = 12)
+                Spacer(Modifier.height(6.dp))
+                Text(video.title, color = Color.White, fontSize = 12.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(video.channel, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 }
 

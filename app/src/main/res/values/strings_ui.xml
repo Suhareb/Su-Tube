@@ -177,4 +177,8 @@
     <string name="settings_open_links_line" translatable="false">Make YouTube video and Shorts links open in Su Tube</string>
     <string name="comments_sort_top" translatable="false">Top</string>
     <string name="comments_sort_newest" translatable="false">Newest</string>
+    <string name="ui_home_fresh_title" translatable="false">Dig for unseen videos on refresh</string>
+    <string name="ui_home_fresh_line" translatable="false">Off: Home shows what YouTube picked for you, in its own order. On: a refresh reads further into YouTube\'s list for videos you haven\'t seen yet.</string>
+    <string name="ui_history_all" translatable="false">Show all</string>
+    <string name="ui_history_less" translatable="false">Show less</string>
 </resources>

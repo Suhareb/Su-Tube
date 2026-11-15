@@ -182,6 +182,9 @@ private val EdgeGuard = 28.dp
 /** The middle's swipe down leaves fullscreen past this far, or on a flick ([ExitFlick] px/s). */
 private const val ExitDistancePx = 120f
 private const val ExitFlick = 1400f
+/** The middle's swipe up opens the recommendations past this far (dp), or on a flick ([UpFlick] px/s). */
+private val UpDistance = 72.dp
+private const val UpFlick = 1100f
 
 @Composable
 fun rememberFullscreenSliders(): FullscreenSliders {
@@ -199,7 +202,7 @@ fun rememberFullscreenSliders(): FullscreenSliders {
  * The gestures: side drags go to [sliders]; middle drags follow [onPull] (how far down, for a
  * little give) and leave fullscreen on release past [ExitDistancePx] or a flick down.
  */
-fun Modifier.fullscreenGestures(sliders: FullscreenSliders, onPull: (Float) -> Unit, onSwipeDown: () -> Unit) = pointerInput(sliders) {
+fun Modifier.fullscreenGestures(sliders: FullscreenSliders, onPull: (Float) -> Unit, onSwipeDown: () -> Unit, onSwipeUp: () -> Unit = {}) = pointerInput(sliders) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         val guard = EdgeGuard.toPx()
@@ -225,15 +228,19 @@ fun Modifier.fullscreenGestures(sliders: FullscreenSliders, onPull: (Float) -> U
             val tracker = VelocityTracker()
             tracker.addPosition(start.uptimeMillis, start.position)
             var pulled = over.coerceAtLeast(0f)
+            // Signed travel since the touch slop (negative = up), for the swipe up.
+            var net = over
             onPull(pulled)
             val finished = verticalDrag(start.id) { change ->
                 tracker.addPosition(change.uptimeMillis, change.position)
+                net += change.positionChange().y
                 pulled = (pulled + change.positionChange().y).coerceAtLeast(0f)
                 onPull(pulled)
                 change.consume()
             }
             onPull(0f)
             if (finished && (pulled > ExitDistancePx || tracker.calculateVelocity().y > ExitFlick)) onSwipeDown()
+            else if (finished && (net < -UpDistance.toPx() || tracker.calculateVelocity().y < -UpFlick)) onSwipeUp()
         }
     }
 }

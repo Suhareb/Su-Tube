@@ -46,6 +46,26 @@ import kotlinx.coroutines.launch
 
 /** A pageable list of videos (the account's home, subscriptions, history; a playlist; a channel's tab). */
 @Stable
+/**
+ * How Home refreshes. Off (the default): a refresh shows what YouTube picked for the account, in its own
+ * order. On: it reads further into YouTube's list, for videos not shown yet this session.
+ */
+object HomeFeed {
+    private var prefs: android.content.SharedPreferences? = null
+    var deepRefresh by mutableStateOf(false)
+        private set
+
+    fun init(context: android.content.Context) {
+        val p = context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE).also { prefs = it }
+        deepRefresh = p.getBoolean("home_deep_refresh", false)
+    }
+
+    fun choose(on: Boolean) {
+        deepRefresh = on
+        prefs?.edit()?.putBoolean("home_deep_refresh", on)?.apply()
+    }
+}
+
 class FeedState(
     private val scope: CoroutineScope,
     /** Warm up the stream data of the first videos once a page lands (Home, Subscriptions). */
@@ -125,7 +145,7 @@ class FeedState(
             val result = runCatching {
                 when {
                     pick?.token != null -> loader(pick.token)
-                    fresh && freshOnRefresh && shown.isNotEmpty() -> loadFresh()
+                    fresh && freshOnRefresh && HomeFeed.deepRefresh && shown.isNotEmpty() -> loadFresh()
                     else -> loader(null)
                 }
             }

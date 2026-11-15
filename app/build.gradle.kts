@@ -7,16 +7,9 @@ plugins {
 android {
     namespace = "com.decio.skipii"
     compileSdk = 36
-    signingConfigs {
-        create("release") {
-            storeFile = file("release-key.jks")
-            storePassword = System.getenv("SIGNING_STORE_PASSWORD")
-            keyAlias = System.getenv("SIGNING_KEY_ALIAS")
-            keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
-        }
-    }
+
     defaultConfig {
-        applicationId = "com.decio.skipii"
+        applicationId = "com.sutube"
         minSdk = 26
         targetSdk = 36
         versionCode = 123
@@ -24,9 +17,6 @@ android {
     }
 
     buildTypes {
-        getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
-        }
         release {
             // Judge speed and smoothness on this build type, never on debug.
             isMinifyEnabled = true
