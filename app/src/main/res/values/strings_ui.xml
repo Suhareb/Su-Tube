@@ -194,4 +194,21 @@
     <string name="ui_history_no_match" translatable="false">Nothing in your history matches that.</string>
     <string name="ui_row_empty" translatable="false">Nothing here yet</string>
     <string name="settings_github_developer" translatable="false">GitHub</string>
+    <string name="shorts_views" translatable="false">%1$s views</string>
+    <string name="ui_hello" translatable="false">Hello, %1$s</string>
+    <string name="ui_view_channel" translatable="false">View channel</string>
+    <string name="ui_filter_no_match" translatable="false">Nothing saved here matches those filters.</string>
+    <string name="comments_copied" translatable="false">Comment copied</string>
+    <string name="comments_nested_show" translatable="false">Show %1$d replies</string>
+    <string name="comments_nested_hide" translatable="false">Hide replies</string>
+    <string name="comments_search_hint" translatable="false">Search comments</string>
+    <string name="comments_search_none" translatable="false">No loaded comments match.</string>
+    <string name="comments_search_title" translatable="false">Search</string>
+    <string name="settings_comment_copy_title" translatable="false">Long press copies a comment</string>
+    <string name="settings_comment_copy_line" translatable="false">Hold a comment to copy its text</string>
+    <string name="settings_comment_search_title" translatable="false">Search comments</string>
+    <string name="settings_comment_search_line" translatable="false">A search button in the comments sheet</string>
+    <string name="inbox_title" translatable="false">Notifications</string>
+    <string name="inbox_empty" translatable="false">No notifications yet.</string>
+    <string name="inbox_error" translatable="false">Couldn\'t load your notifications.</string>
 </resources>

@@ -12,8 +12,8 @@ android {
         applicationId = "com.sutube"
         minSdk = 26
         targetSdk = 36
-        versionCode = 100
-        versionName = "1.00"
+        versionCode = 123
+        versionName = "0.5.114"
     }
 
     signingConfigs {

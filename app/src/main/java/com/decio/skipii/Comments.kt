@@ -39,6 +39,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -135,6 +139,7 @@ class CommentsState(private val scope: CoroutineScope) {
         private set
     var newestFirst by mutableStateOf(false)
         private set
+        private set
     private var next: String? = null
     val hasMore get() = next != null
 
@@ -154,6 +159,20 @@ class CommentsState(private val scope: CoroutineScope) {
         }
     }
     val repliesLoading = mutableStateMapOf<String, Boolean>()
+    /** Replies (by id) whose own replies are open: someone answering a reply gets a thread under it. */
+    val nestedOpen = mutableStateMapOf<String, Boolean>()
+
+    /** The search over the loaded comments (the search button in the sheet's title). */
+    var searchOpen by mutableStateOf(false)
+    var searchQuery by mutableStateOf("")
+
+    /** Whether [comment] shows while searching: its text or author, or any open reply's. */
+    fun matchesSearch(comment: Comment): Boolean {
+        val q = if (searchOpen && CommentPrefs.search) searchQuery.trim() else ""
+        if (q.isEmpty()) return true
+        fun hit(c: Comment) = c.text.contains(q, ignoreCase = true) || c.author.contains(q, ignoreCase = true) || c.name?.contains(q, ignoreCase = true) == true
+        return hit(comment) || replies[comment.id]?.any { hit(it) } == true
+    }
 
     private var job: Job? = null
 
@@ -163,7 +182,8 @@ class CommentsState(private val scope: CoroutineScope) {
         videoId = id
         comments = emptyList(); total = -1; disabled = false; error = null; next = null
         sortTokens = emptyList(); newestFirst = false
-        replies.clear(); repliesLoading.clear(); replyingTo = null; draft = ""; postError = null
+        replies.clear(); repliesLoading.clear(); nestedOpen.clear(); replyingTo = null; draft = ""; postError = null
+        searchOpen = false; searchQuery = ""
         loading = true
     }
 
@@ -181,6 +201,9 @@ class CommentsState(private val scope: CoroutineScope) {
         newestFirst = false
         replies.clear()
         repliesLoading.clear()
+        nestedOpen.clear()
+        searchOpen = false
+        searchQuery = ""
         liked.clear()
         loading = true
         job?.cancel()
@@ -390,19 +413,43 @@ fun CommentsPanel(state: CommentsState, partialTop: Dp, onClose: () -> Unit) {
                 Spacer(Modifier.width(6.dp))
                 SortChip(stringResource(R.string.comments_sort_newest), selected = state.newestFirst) { state.chooseSort(true) }
             }
+            if (CommentPrefs.search && state.comments.isNotEmpty()) {
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    Modifier.size(32.dp)
+                        .pressable { state.searchOpen = !state.searchOpen; if (!state.searchOpen) state.searchQuery = "" }
+                        .clip(CircleShape)
+                        .background(if (state.searchOpen) c.primary else c.surfaceContainerHighest),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.Search, stringResource(R.string.comments_search_title),
+                        tint = if (state.searchOpen) c.onPrimary else c.onSurfaceVariant, modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
         },
     ) { listModifier ->
         val list = rememberLazyListState()
         val nearEnd by remember {
             derivedStateOf { (list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= list.layoutInfo.totalItemsCount - 4 }
         }
-        LaunchedEffect(nearEnd) { if (nearEnd) state.loadMore() }
+        // Also when more arrived and the end is still in view: a search that few comments match keeps reading on.
+        LaunchedEffect(nearEnd, state.comments.size) { if (nearEnd) state.loadMore() }
         LazyColumn(state = list, modifier = listModifier) {
+            if (state.searchOpen && CommentPrefs.search) item(key = "commentSearch") {
+                CommentSearchField(state.searchQuery) { state.searchQuery = it }
+            }
             commentThreads(state, sticky = true, keyPrefix = "", background = c.surfaceContainerLow)
             if (state.loading || state.hasMore) item {
                 Box(Modifier.fillMaxWidth().padding(20.dp), Alignment.Center) {
                     CircularProgressIndicator(color = c.primary, strokeWidth = 3.dp, modifier = Modifier.size(26.dp))
                 }
+            }
+            if (state.searchOpen && CommentPrefs.search && state.searchQuery.isNotBlank() && !state.loading && !state.hasMore &&
+                state.comments.isNotEmpty() && state.comments.none { state.matchesSearch(it) }
+            ) item {
+                Text(stringResource(R.string.comments_search_none), color = c.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp))
             }
             if (!state.loading && state.comments.isEmpty()) item {
                 Text(
@@ -680,7 +727,10 @@ private const val TapWindowMs = 300L
 private fun CommentRow(
     comment: Comment,
     state: CommentsState,
-    isReply: Boolean = false,
+    /** 0 a comment, 1 a reply to it, 2 and on a reply to a reply (each a step further in, up to 3). */
+    depth: Int = 0,
+    /** Guide lines (x in dp) of the threads above that carry on past this row. */
+    trail: List<Int> = emptyList(),
     /** The last reply of a thread: its guide line ends in the elbow instead of running on. */
     isLast: Boolean = false,
     /** The comment whose replies are open beneath it: a guide line runs down from its avatar. */
@@ -689,16 +739,28 @@ private fun CommentRow(
     compact: Boolean = false,
 ) {
     val c = MaterialTheme.colorScheme
+    val isReply = depth > 0
     val haptic = LocalHapticFeedback.current
     val tapScope = rememberCoroutineScope()
     val taps = remember(comment.id) { TapCounter() }
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val copiedText = stringResource(R.string.comments_copied)
     Row(
         Modifier
             .fillMaxWidth()
             // Double tap likes the comment, triple tap starts a reply (signed in only). A short wait after
             // each tap tells the two apart, so a triple tap never leaves a like behind.
             .pointerInput(comment.id) {
-                detectTapGestures {
+                detectTapGestures(onLongPress = {
+                    // Hold a comment: its text goes to the clipboard (Settings can turn this off).
+                    if (CommentPrefs.copyOnLongPress) {
+                        clipboard.setText(AnnotatedString(comment.text))
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        // Android 13+ shows its own "copied" note.
+                        if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(context, copiedText, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }) {
                     val canAct = Account.signedIn && !comment.id.startsWith("local-")
                     taps.job?.cancel()
                     taps.count++
@@ -721,16 +783,17 @@ private fun CommentRow(
                     }
                 }
             }
-            // Reddit-style guide: a line from the parent's avatar down the replies, with an elbow into each one.
+            // Reddit-style guide: a line from the parent's avatar down its replies, with an elbow into each one.
             .then(
-                if (isReply || threadOpen) {
+                if (isReply || threadOpen || trail.isNotEmpty()) {
                     val guide = c.outlineVariant
                     Modifier.drawBehind {
-                        val x = 38.dp.toPx()
                         val width = 1.5.dp.toPx()
-                        if (threadOpen) {
-                            drawLine(guide, Offset(x, 50.dp.toPx()), Offset(x, size.height), strokeWidth = width, cap = StrokeCap.Round)
-                        } else {
+                        trail.forEach { x ->
+                            drawLine(guide, Offset(x.dp.toPx(), 0f), Offset(x.dp.toPx(), size.height), strokeWidth = width, cap = StrokeCap.Round)
+                        }
+                        if (isReply) {
+                            val x = threadCenter(depth - 1).dp.toPx()
                             val cy = 24.dp.toPx()
                             val r = 12.dp.toPx()
                             if (isLast) drawLine(guide, Offset(x, 0f), Offset(x, cy - r), strokeWidth = width, cap = StrokeCap.Round)
@@ -738,14 +801,18 @@ private fun CommentRow(
                             val elbow = Path().apply {
                                 moveTo(x, cy - r)
                                 quadraticBezierTo(x, cy, x + r, cy)
-                                lineTo(58.dp.toPx(), cy)
+                                lineTo((threadStart(depth) - 4).dp.toPx(), cy)
                             }
                             drawPath(elbow, guide, style = Stroke(width = width, cap = StrokeCap.Round))
+                        }
+                        if (threadOpen) {
+                            val x = threadCenter(depth).dp.toPx()
+                            drawLine(guide, Offset(x, (if (isReply) 42 else 50).dp.toPx()), Offset(x, size.height), strokeWidth = width, cap = StrokeCap.Round)
                         }
                     }
                 } else Modifier,
             )
-            .padding(start = if (isReply) 62.dp else 20.dp, end = 20.dp, top = 10.dp, bottom = 6.dp),
+            .padding(start = threadStart(depth).dp, end = 20.dp, top = 10.dp, bottom = 6.dp),
     ) {
         ChannelAvatar(comment.avatar, comment.author, size = if (isReply) 28 else 36)
         Spacer(Modifier.width(12.dp))
@@ -824,13 +891,43 @@ private fun CommentRow(
     }
 }
 
+/** Where a comment (depth 0) or a reply (1 and on) starts, and the middle of its avatar, in dp. */
+private fun threadStart(depth: Int) = 20 + 42 * minOf(depth, 3)
+private fun threadCenter(depth: Int) = threadStart(depth) + if (depth == 0) 18 else 14
+
+/** A reply with the replies that answer it. */
+private class ReplyNode(val reply: Comment) {
+    val children = ArrayList<ReplyNode>()
+    fun count(): Int = children.sumOf { 1 + it.count() }
+}
+
+/**
+ * YouTube lists every reply flat under the comment, each starting with the @handle of who it answers. A reply
+ * that answers an earlier reply goes under that one (a thread of its own); the rest answer the comment itself.
+ */
+private fun replyTree(replies: List<Comment>): List<ReplyNode> {
+    val nodes = replies.map { ReplyNode(it) }
+    val roots = ArrayList<ReplyNode>()
+    nodes.forEachIndexed { i, node ->
+        val mention = node.reply.text.trimStart().takeIf { it.startsWith("@") }
+            ?.substring(1)?.takeWhile { !it.isWhitespace() }?.trimEnd(',', ':', ';', '!', '?', '.')
+        val target = mention?.takeIf { it.isNotEmpty() }?.let { m ->
+            (i - 1 downTo 0).firstOrNull { nodes[it].reply.author.removePrefix("@").equals(m, ignoreCase = true) }?.let { nodes[it] }
+        }
+        if (target != null) target.children += node else roots += node
+    }
+    return roots
+}
+
 /**
  * Every comment, each followed by its replies once opened. With [sticky] (the sheet), a comment whose replies
  * are open stays pinned at the top of the list while they scroll past, so "Hide replies" is always in reach.
+ * A reply that others answered has a dropdown of its own for those answers.
  */
 @OptIn(ExperimentalFoundationApi::class)
 private fun LazyListScope.commentThreads(state: CommentsState, sticky: Boolean, keyPrefix: String, background: Color) {
     state.comments.forEach { comment ->
+        if (!state.matchesSearch(comment)) return@forEach
         val replies = state.replies[comment.id]
         if (replies == null) {
             item(key = keyPrefix + comment.id) { CommentRow(comment, state) }
@@ -842,9 +939,117 @@ private fun LazyListScope.commentThreads(state: CommentsState, sticky: Boolean, 
             } else {
                 item(key = keyPrefix + comment.id) { CommentRow(comment, state, threadOpen = true) }
             }
-            itemsIndexed(replies, key = { _, reply -> keyPrefix + "reply-" + reply.id }) { index, reply ->
-                CommentRow(reply, state, isReply = true, isLast = index == replies.lastIndex)
+            replyNodes(replyTree(replies), state, keyPrefix, depth = 1, trail = emptyList())
+        }
+    }
+}
+
+private fun LazyListScope.replyNodes(nodes: List<ReplyNode>, state: CommentsState, keyPrefix: String, depth: Int, trail: List<Int>) {
+    nodes.forEachIndexed { index, node ->
+        val last = index == nodes.lastIndex
+        val open = state.nestedOpen[node.reply.id] == true
+        val hasChildren = node.children.isNotEmpty()
+        // What carries on past this reply for the rows below it: the lines above, and its own parent's line when more replies follow.
+        val below = if (last) trail else trail + threadCenter(depth - 1)
+        item(key = keyPrefix + "reply-" + node.reply.id) {
+            CommentRow(node.reply, state, depth = depth, trail = trail, isLast = last, threadOpen = hasChildren && open)
+        }
+        if (hasChildren) {
+            item(key = keyPrefix + "nest-" + node.reply.id) {
+                NestedRepliesToggle(node.count(), open, depth, below) { state.nestedOpen[node.reply.id] = !open }
+            }
+            if (open) replyNodes(node.children, state, keyPrefix, minOf(depth + 1, 3), below)
+        }
+    }
+}
+
+/** "Show 3 replies" under a reply that others answered; opens or closes that thread. */
+@Composable
+private fun NestedRepliesToggle(count: Int, open: Boolean, depth: Int, trail: List<Int>, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val guide = c.outlineVariant
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val width = 1.5.dp.toPx()
+                trail.forEach { x ->
+                    drawLine(guide, Offset(x.dp.toPx(), 0f), Offset(x.dp.toPx(), size.height), strokeWidth = width, cap = StrokeCap.Round)
+                }
+                if (open) {
+                    val x = threadCenter(depth).dp.toPx()
+                    drawLine(guide, Offset(x, 0f), Offset(x, size.height), strokeWidth = width, cap = StrokeCap.Round)
+                }
+            }
+            .padding(start = (threadStart(depth) + 40).dp, end = 20.dp)
+            .pressable(onClick = onClick)
+            .padding(vertical = 6.dp),
+    ) {
+        Text(
+            if (open) stringResource(R.string.comments_nested_hide) else stringResource(R.string.comments_nested_show, count),
+            color = c.primary, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
+        )
+    }
+}
+
+/** The search box under the comments title: filters the comments loaded so far. */
+@Composable
+private fun CommentSearchField(value: String, onChange: (String) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(CircleShape)
+            .background(c.surfaceContainerHigh)
+            .padding(start = 14.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Search, null, tint = c.onSurfaceVariant, modifier = Modifier.size(19.dp))
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f)) {
+            if (value.isEmpty()) {
+                Text(stringResource(R.string.comments_search_hint), color = c.onSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            androidx.compose.foundation.text.BasicTextField(
+                value = value,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = OwnDirectionText.merge(androidx.compose.ui.text.TextStyle(color = c.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.primary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (value.isNotEmpty()) {
+            Box(Modifier.size(36.dp).pressable { onChange("") }, contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Close, stringResource(R.string.ui_clear_search), tint = c.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
         }
+    }
+}
+
+/** Comment preferences (Settings › Playback): long press copies, and the search button; both on to begin with. */
+object CommentPrefs {
+    private var prefs: android.content.SharedPreferences? = null
+    var copyOnLongPress by mutableStateOf(true)
+        private set
+    var search by mutableStateOf(true)
+        private set
+
+    fun init(context: android.content.Context) {
+        val p = context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE).also { prefs = it }
+        copyOnLongPress = p.getBoolean("comment_copy", true)
+        search = p.getBoolean("comment_search", true)
+    }
+
+    fun chooseCopy(on: Boolean) {
+        copyOnLongPress = on
+        prefs?.edit()?.putBoolean("comment_copy", on)?.apply()
+    }
+
+    fun chooseSearch(on: Boolean) {
+        search = on
+        prefs?.edit()?.putBoolean("comment_search", on)?.apply()
     }
 }

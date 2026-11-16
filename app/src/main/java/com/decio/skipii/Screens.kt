@@ -40,6 +40,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
@@ -389,7 +391,9 @@ fun LibraryScreen(
         locked = pinHistory,
         header = {
             Column {
-                ScreenHeader(title = stringResource(R.string.ui_library_title)) { AccountAction(onAccount) }
+                // Signed in: the notifications bell stays at the top; the profile moves into the greeting below.
+                ScreenHeader(title = stringResource(R.string.ui_library_title)) { if (signedIn) InboxBell() else AccountAction(onAccount) }
+                if (signedIn && !pinHistory) LibraryHero(onSettings = onAccount)
                 if (pinHistory) {
                     historyHeader()
                     HistorySearchField(historyQuery) { historyQuery = it }
@@ -480,6 +484,53 @@ fun LibraryScreen(
             }
         }
         }
+    }
+}
+
+/** The Library's greeting: the profile picture, "Hello, name", then View channel on the left and Settings on the right. */
+@Composable
+private fun LibraryHero(onSettings: () -> Unit) {
+    val profile = Account.profile ?: return
+    val openChannel = LocalChannelOpener.current
+    val handle = profile.handle?.trim()?.takeIf { it.isNotEmpty() }
+    Column(
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        ChannelAvatar(profile.avatar, profile.name, size = 88)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            stringResource(R.string.ui_hello, profile.name),
+            fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            if (handle != null) {
+                HeroButton(Icons.Rounded.Person, stringResource(R.string.ui_view_channel), primary = true) {
+                    openChannel("https://www.youtube.com/" + if (handle.startsWith("@")) handle else "@$handle")
+                }
+            } else Spacer(Modifier.width(1.dp))
+            HeroButton(Icons.Rounded.Settings, stringResource(R.string.settings_title), primary = false, onClick = onSettings)
+        }
+    }
+}
+
+@Composable
+private fun HeroButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, primary: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .pressable(pressedScale = 0.96f, onClick = onClick)
+            .clip(CircleShape)
+            .background(if (primary) c.primaryContainer else c.surfaceContainerHigh)
+            .padding(horizontal = 18.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val tint = if (primary) c.onPrimaryContainer else c.onSurface
+        Icon(icon, null, tint = tint, modifier = Modifier.size(19.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }
 
@@ -609,14 +660,29 @@ private fun PlaylistTile(playlist: PlaylistRef, modifier: Modifier, onClick: () 
     }
 }
 
-/** A playlist's videos (Watch later, Liked, or the user's own). */
+/** A playlist's videos (Watch later, Liked, or the user's own). Watch later and Liked also get filter chips. */
 @Composable
 fun PlaylistScreen(playlist: PlaylistRef, feed: FeedState, contentPadding: PaddingValues, onBack: () -> Unit, onOpen: (VideoItem) -> Unit) {
     LaunchedEffect(playlist.id) { feed.ensureLoaded() }
+    // Filters built from what's saved there: the channels it holds, and how long the videos run.
+    val saved = playlist.id == "WL" || playlist.id == "LL"
+    var channelFilter by remember(playlist.id) { mutableStateOf<String?>(null) }
+    var lengthFilter by remember(playlist.id) { mutableStateOf<SearchLength?>(null) }
+    val videos = feed.videos
+    val channels = remember(videos) {
+        videos.filter { it.channel.isNotBlank() }.groupingBy { it.channel }.eachCount()
+            .entries.sortedByDescending { it.value }.take(8).map { it.key }
+    }
+    val lengths = remember(videos) { SearchLength.values().filter { l -> videos.any { lengthOf(it) == l } } }
+    val filterOn = channelFilter != null || lengthFilter != null
+    val accept: ((VideoItem) -> Boolean)? = if (!saved || !filterOn) null else { v ->
+        (channelFilter == null || v.channel == channelFilter) && (lengthFilter == null || lengthOf(v) == lengthFilter)
+    }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
     CollapsingHeaderLayout(
         resetKey = feed.generation,
         header = {
+        Column {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -629,15 +695,39 @@ fun PlaylistScreen(playlist: PlaylistRef, feed: FeedState, contentPadding: Paddi
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
+        if (saved && (channels.size > 1 || lengths.size > 1)) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                items(lengths, key = { "len-" + it.name }) { l ->
+                    SearchFilterPill(stringResource(l.label), lengthFilter == l) { lengthFilter = if (lengthFilter == l) null else l }
+                }
+                items(channels, key = { "ch-" + it }) { name ->
+                    SearchFilterPill(name, channelFilter == name) { channelFilter = if (channelFilter == name) null else name }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        }
         },
     ) { top ->
         if (feed.videos.isEmpty() && !feed.loading && feed.error == null && !feed.hasMore) {
             Box(Modifier.padding(top = top)) { EmptyState(Icons.Rounded.VideoLibrary, stringResource(R.string.ui_playlist_empty_title), stringResource(R.string.ui_playlist_empty_body)) }
         } else {
-            FeedList(feed, contentPadding.withTop(top), onOpen, indicatorTop = top)
+            FeedList(feed, contentPadding.withTop(top), onOpen, indicatorTop = top, filter = accept)
         }
     }
     }
+}
+
+/** Which length chip a video falls under (the search filters' own cut-offs: 4 and 20 minutes). */
+private fun lengthOf(video: VideoItem): SearchLength? = when {
+    video.durationSec <= 0 -> null
+    video.durationSec < 240 -> SearchLength.Short
+    video.durationSec <= 1200 -> SearchLength.Medium
+    else -> SearchLength.Long
 }
 
 @Composable

@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -150,8 +151,11 @@ fun AccountAction(onClick: () -> Unit) {
     if (profile == null) {
         CircleAction(Icons.Rounded.AccountCircle, stringResource(R.string.ui_sign_in), onClick)
     } else {
-        Box(Modifier.size(44.dp).pressable(onClick = onClick), contentAlignment = Alignment.Center) {
-            ChannelAvatar(profile.avatar, profile.name, size = 40)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            InboxBell()
+            Box(Modifier.size(44.dp).pressable(onClick = onClick), contentAlignment = Alignment.Center) {
+                ChannelAvatar(profile.avatar, profile.name, size = 40)
+            }
         }
     }
 }

@@ -553,6 +553,7 @@ fun SkipiiApp() {
             LocalPictureInPicture provides pip,
             LocalVideoMenu provides { optionsFor = it },
             LocalChannelOpener provides { url -> showChannel(url) },
+            LocalVideoOpener provides { video -> player.open(video) },
             LocalWindowLayout provides windowLayout,
         ) {
         Box(Modifier.padding(start = pagesStart)) {

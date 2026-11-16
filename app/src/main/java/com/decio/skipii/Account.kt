@@ -173,6 +173,7 @@ object Account {
     }
 
     fun signOut() {
+        Inbox.clear()
         synchronized(cookies) { cookies.clear() }
         store?.clear()
         profile = null

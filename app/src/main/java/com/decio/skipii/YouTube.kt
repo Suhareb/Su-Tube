@@ -58,6 +58,8 @@ data class VideoItem(
     val uploaded: String?,
     /** The card's own "Not interested" / "Don't recommend channel" (signed-in feeds only, #16). */
     val feedback: CardFeedback? = null,
+    /** When it was published (epoch milliseconds), where the source says; Shorts show it as a date. */
+    val publishedMs: Long? = null,
 )
 
 /** Tokens YouTube puts on a signed-in card for its feedback items; sent back as they are ([InnerTube.sendFeedback]). */
@@ -209,6 +211,7 @@ object YouTube {
                 durationSec = info.duration,
                 views = info.viewCount,
                 uploaded = uploadedText(info.textualUploadDate, info.uploadDate),
+                publishedMs = info.uploadDate?.offsetDateTime()?.toInstant()?.toEpochMilli(),
             ),
             description = descriptionParts(info.description).first,
             descriptionLinks = descriptionParts(info.description).second,
@@ -266,6 +269,7 @@ object YouTube {
             durationSec = duration,
             views = viewCount,
             uploaded = uploadedText(textualUploadDate, uploadDate),
+            publishedMs = uploadDate?.offsetDateTime()?.toInstant()?.toEpochMilli(),
         )
     }
 

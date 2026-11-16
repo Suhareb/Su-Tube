@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import android.content.Context
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.CoroutineScope
@@ -415,6 +417,8 @@ fun FeedList(
     indicatorTop: Dp = 0.dp,
     /** A card of its own in a grid's second spot (wide windows only). */
     gridExtra: (@Composable (Modifier) -> Unit)? = null,
+    /** Shows only the videos this accepts (a playlist's chips); null shows them all. */
+    filter: ((VideoItem) -> Boolean)? = null,
 ) {
     val c = MaterialTheme.colorScheme
     val list = rememberScrollToTop(scrollToTop)
@@ -428,10 +432,18 @@ fun FeedList(
     }
     LaunchedEffect(nearEnd, feed.videos.size) { if (nearEnd && feed.videos.isNotEmpty()) feed.loadMore() }
     val columns = gridColumns()
+    val shown = if (filter == null) feed.videos else feed.videos.filter(filter)
     PullToRefresh(enabled = pullToRefresh, refreshing = feed.refreshing, onRefresh = feed::refresh, topPadding = indicatorTop) {
     LazyColumn(state = list, contentPadding = contentPadding) {
         header()
-        videoCards(feed.videos, columns, onOpen, extra = gridExtra)
+        videoCards(shown, columns, onOpen, extra = gridExtra)
+        if (filter != null && shown.isEmpty() && feed.videos.isNotEmpty() && !feed.hasMore && !feed.loading) item {
+            Text(
+                stringResource(R.string.ui_filter_no_match),
+                color = c.onSurfaceVariant, fontSize = 14.sp,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            )
+        }
         when {
             // No keys on these trailing items: a keyed loader at index 0 makes LazyColumn
             // hold it in view when videos arrive above it, landing at the bottom of the page.

@@ -3,6 +3,7 @@ package com.decio.skipii
 import android.Manifest
 import android.content.Intent
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.automirrored.rounded.Undo
@@ -1009,6 +1010,8 @@ private fun entries(): List<Entry> = buildList {
     add(Entry(pb, "swipe_brightness", str(R.string.settings_swipe_brightness_title), listOf(str(R.string.settings_swipe_brightness_line), str(R.string.settings_swipe_words))))
     add(Entry(pb, "swipe_volume", str(R.string.settings_swipe_volume_title), listOf(str(R.string.settings_swipe_volume_line), str(R.string.settings_swipe_words))))
     add(Entry(pb, "audio", str(R.string.bar_audio_only), listOf(str(R.string.settings_audio_only_line))))
+    add(Entry(pb, "comment_copy", str(R.string.settings_comment_copy_title), listOf(str(R.string.settings_comment_copy_line), "copy", "clipboard", "comments")))
+    add(Entry(pb, "comment_search", str(R.string.settings_comment_search_title), listOf(str(R.string.settings_comment_search_line), "search", "comments")))
     add(Entry(pb, "live", str(R.string.settings_live_title), listOf(str(R.string.settings_live_line), str(R.string.settings_live_words))))
     val cc = SettingsPage.Captions
     add(Entry(cc, "show", str(R.string.captions_show), listOf(str(R.string.captions_show_never), str(R.string.captions_show_always))))
@@ -1384,6 +1387,24 @@ private fun PlaybackPage(player: PlayerState) {
                 icon = Icons.AutoMirrored.Rounded.VolumeUp,
             ) { FullscreenSwipes.turnVolume(it) }
         }
+    }
+    // Comments: copying with a long press, and the search button in the comments sheet.
+    Spacer(Modifier.height(14.dp))
+    Joined(2) { i, shape ->
+        if (i == 0) SwitchSetting(
+            "comment_copy", shape,
+            stringResource(R.string.settings_comment_copy_title),
+            stringResource(R.string.settings_comment_copy_line),
+            CommentPrefs.copyOnLongPress,
+            icon = Icons.Rounded.ContentCopy,
+        ) { CommentPrefs.chooseCopy(it) }
+        else SwitchSetting(
+            "comment_search", shape,
+            stringResource(R.string.settings_comment_search_title),
+            stringResource(R.string.settings_comment_search_line),
+            CommentPrefs.search,
+            icon = Icons.Rounded.Search,
+        ) { CommentPrefs.chooseSearch(it) }
     }
     Spacer(Modifier.height(14.dp))
     // Off screen.

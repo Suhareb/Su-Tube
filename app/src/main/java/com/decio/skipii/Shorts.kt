@@ -178,6 +178,25 @@ private val GlassTint = Color(0xFF252525).copy(alpha = 0.38f)
 private val GlassTintBare = Color(0xFF252525).copy(alpha = 0.6f)
 private val Ink = Color(0xFFFAFAFA)
 
+/**
+ * A short's posting date: minutes, then hours, then days, then weeks ago; from a month on the date itself (dd-MM-yy).
+ * Without an exact time the source's own text ("3 days ago") stands in.
+ */
+private fun shortsPosted(publishedMs: Long?, fallback: String?): String? {
+    if (publishedMs == null) return fallback?.takeIf { it.isNotBlank() }
+    val then = java.time.Instant.ofEpochMilli(publishedMs)
+    val seconds = java.time.Duration.between(then, java.time.Instant.now()).seconds.coerceAtLeast(0)
+    fun ago(n: Long, unit: String) = "$n $unit${if (n == 1L) "" else "s"} ago"
+    return when {
+        seconds < 60 -> "just now"
+        seconds < 3_600 -> ago(seconds / 60, "minute")
+        seconds < 86_400 -> ago(seconds / 3_600, "hour")
+        seconds < 7 * 86_400 -> ago(seconds / 86_400, "day")
+        seconds < 30 * 86_400 -> ago(seconds / (7 * 86_400), "week")
+        else -> java.time.format.DateTimeFormatter.ofPattern("dd-MM-yy").format(then.atZone(java.time.ZoneId.systemDefault()))
+    }
+}
+
 /** In over 620 ms (linear; each part eases on its own ramp below), out over 460 ms, fast first. */
 const val ShortsEnterMs = 620
 const val ShortsExitMs = 460
@@ -1480,6 +1499,13 @@ private fun ShortPage(shorts: ShortsState, page: Int, overlayBottom: Dp, barProg
             }
             Column(Modifier.align(Alignment.BottomStart).then(textPlace).graphicsLayer { alpha = 1f - swell }) {
                 Text(details.item.channel, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = if (wide) 16.sp else 14.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = shade)
+                // When it was posted, then how often it was watched.
+                val viewsText = details.item.views.takeIf { it > 0 }?.let { stringResource(R.string.shorts_views, formatCount(it)) }
+                val meta = listOfNotNull(shortsPosted(details.item.publishedMs, details.item.uploaded), viewsText).joinToString(" · ")
+                if (meta.isNotEmpty()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(meta, color = Ink.copy(alpha = 0.85f), fontSize = if (wide) 14.sp else 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = shade)
+                }
                 if (details.item.title.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))
                     Text(
