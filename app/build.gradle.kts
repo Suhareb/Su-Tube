@@ -18,30 +18,32 @@ android {
 
     signingConfigs {
         create("release") {
-        // The release key lives in the repo's GitHub secrets (see .github/workflows/build.yml), never in the
-        // code. Without it (a local build, say) the debug key signs instead, so the build never breaks.
-            val keystore = System.getenv("KEYSTORE_BASE64")
-            val keystoreFile = keystore?.let { file(it) }
-            if (keystoreFile != null && keystoreFile.exists()) {
-                storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
+            val keystorePath = providers.environmentVariable("KEYSTORE_BASE64").orNull
+            if (!keystorePath.isNullOrBlank()) {
+                val keystoreFile = file(keystorePath)
+                if (keystoreFile.isFile) {
+                    storeFile = keystoreFile
+                    storePassword = providers.environmentVariable("KEYSTORE_PASSWORD").orNull
+                    keyAlias = providers.environmentVariable("KEY_ALIAS").orNull
+                    keyPassword = providers.environmentVariable("KEY_PASSWORD").orNull
+                }
             }
         }
     }
 
     buildTypes {
         debug {
-            // Same key as release, so either build installs over the other and over its own earlier versions.
-            signingConfigs.getByName("release").takeIf { it.storeFile != null }?.let { signingConfig = it }
+            val releaseConfig = signingConfigs.getByName("release")
+            if (releaseConfig.storeFile != null) {
+                signingConfig = releaseConfig
+            }
         }
         release {
             // Judge speed and smoothness on this build type, never on debug.
             isMinifyEnabled = true
             isShrinkResources = true
-            // The fixed key when the build has it (updates then install over each other); else the debug key.
-            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null } ?: signingConfigs.getByName("debug")
+            // Always require the release signing config so Gradle never silently falls back to a random debug key.
+            signingConfig = signingConfigs.getByName("release")
             // ML Kit's translator (captions) is the app's only native code, ~16 MB per CPU type: phones only
             // (64- and 32-bit ARM). Debug keeps x86 for the emulator.
             ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
