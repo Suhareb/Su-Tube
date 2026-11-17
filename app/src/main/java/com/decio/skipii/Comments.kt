@@ -139,6 +139,7 @@ class CommentsState(private val scope: CoroutineScope) {
         private set
     var newestFirst by mutableStateOf(false)
         private set
+        private set
     private var next: String? = null
     val hasMore get() = next != null
 
@@ -158,7 +159,7 @@ class CommentsState(private val scope: CoroutineScope) {
         }
     }
     val repliesLoading = mutableStateMapOf<String, Boolean>()
-    /** Replies (by id) whose own replies are open: someone answering a reply gets a thread under it. */
+    /** Replies (by id) whose answers are folded away (false); a reply that was answered shows them under it to begin with. */
     val nestedOpen = mutableStateMapOf<String, Boolean>()
 
     /** The search over the loaded comments (the search button in the sheet's title). */
@@ -908,8 +909,8 @@ private fun replyTree(replies: List<Comment>): List<ReplyNode> {
     val nodes = replies.map { ReplyNode(it) }
     val roots = ArrayList<ReplyNode>()
     nodes.forEachIndexed { i, node ->
-        val mention = node.reply.text.trimStart().takeIf { it.startsWith("@") }
-            ?.substring(1)?.takeWhile { !it.isWhitespace() }?.trimEnd(',', ':', ';', '!', '?', '.')
+        val mention = node.reply.text.trimStart { it.isWhitespace() || it == '\u200B' || it == '\u00A0' }.takeIf { it.startsWith("@") }
+            ?.substring(1)?.takeWhile { !it.isWhitespace() }?.trimEnd(',', ':', ';', '!', '?', '.', '\u2026')
         val target = mention?.takeIf { it.isNotEmpty() }?.let { m ->
             (i - 1 downTo 0).firstOrNull { nodes[it].reply.author.removePrefix("@").equals(m, ignoreCase = true) }?.let { nodes[it] }
         }
@@ -946,7 +947,8 @@ private fun LazyListScope.commentThreads(state: CommentsState, sticky: Boolean, 
 private fun LazyListScope.replyNodes(nodes: List<ReplyNode>, state: CommentsState, keyPrefix: String, depth: Int, trail: List<Int>) {
     nodes.forEachIndexed { index, node ->
         val last = index == nodes.lastIndex
-        val open = state.nestedOpen[node.reply.id] == true
+        // Open to begin with: the answers show right under the reply they answer (the dropdown folds them away).
+        val open = state.nestedOpen[node.reply.id] != false
         val hasChildren = node.children.isNotEmpty()
         // What carries on past this reply for the rows below it: the lines above, and its own parent's line when more replies follow.
         val below = if (last) trail else trail + threadCenter(depth - 1)
