@@ -156,6 +156,7 @@ class PlayerState(private val scope: CoroutineScope) {
         if (expand) expanded = true
         if (current?.id == item.id && error == null) return
         known[item.id] = item
+        RecentWatched.record(item)
         show(item, startPlayback = true)
     }
 

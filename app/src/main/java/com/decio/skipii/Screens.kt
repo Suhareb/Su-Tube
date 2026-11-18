@@ -378,6 +378,10 @@ fun LibraryScreen(
             icon = if (historyOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
         ) { historyOpen = !historyOpen; if (!historyOpen) historyQuery = "" }
     }
+    // A video watched since the list was read: read it again (the list also shows it at once, see RecentWatched).
+    LaunchedEffect(RecentWatched.version) {
+        if (signedIn && RecentWatched.version > 0 && lib.history.videos.isNotEmpty()) lib.history.refresh()
+    }
     LaunchedEffect(signedIn) {
         if (signedIn) {
             lib.history.ensureLoaded()
@@ -622,6 +626,7 @@ private fun HistoryCard(video: VideoItem, onClick: () -> Unit) {
         Box {
             Thumbnail(video.thumbnail, Modifier.fillMaxWidth().aspectRatio(16f / 9f), radius = 20)
             DurationPill(video.durationSec, Modifier.align(Alignment.BottomEnd).padding(6.dp), small = true)
+            ResumeBar(video.id, Modifier.align(Alignment.BottomStart), serverPercent = video.watchedPercent, inset = 8.dp, thickness = 3.dp)
         }
         Spacer(Modifier.height(7.dp))
         Text(video.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)

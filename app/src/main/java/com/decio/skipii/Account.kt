@@ -1037,7 +1037,22 @@ object InnerTube {
             views = parseViews(o.text("viewCountText") ?: o.text("shortViewCountText") ?: infoRuns.firstOrNull { it.contains("view") }),
             uploaded = o.text("publishedTimeText") ?: infoRuns.firstOrNull { it.contains("ago") },
             feedback = feedbackOf(o),
+            watchedPercent = watchedPercentOf(o),
         )
+    }
+
+    /** The share of a video the account has watched, from the card's progress overlay (old and new renderers). */
+    private fun watchedPercentOf(o: JSONObject): Int? {
+        var found: Int? = null
+        o.walk { key, obj ->
+            if (found == null) {
+                when (key) {
+                    "thumbnailOverlayResumePlaybackRenderer" -> obj.optInt("percentDurationWatched", -1).takeIf { it > 0 }?.let { found = it }
+                    "thumbnailOverlayProgressBarViewModel" -> obj.optInt("startPercent", -1).takeIf { it > 0 }?.let { found = it }
+                }
+            }
+        }
+        return found
     }
 
     private fun parseLockup(o: JSONObject): VideoItem? {
@@ -1065,6 +1080,7 @@ object InnerTube {
             views = parseViews(parts.firstOrNull { it.contains("view") }),
             uploaded = parts.firstOrNull { it.contains("ago") },
             feedback = feedbackOf(o),
+            watchedPercent = watchedPercentOf(o),
         )
     }
 

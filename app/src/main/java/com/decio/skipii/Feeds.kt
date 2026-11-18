@@ -49,6 +49,32 @@ import kotlinx.coroutines.launch
 /** A pageable list of videos (the account's home, subscriptions, history; a playlist; a channel's tab). */
 @Stable
 /**
+ * The videos opened on this phone lately, newest first. YouTube's history can lag behind what was just
+ * watched, so the Library's history puts these on top until YouTube lists them itself.
+ */
+object RecentWatched {
+    private val items = ArrayList<Pair<VideoItem, Long>>()
+    /** Counts up with every video opened; the Library reads its history again when it changes. */
+    var version by mutableStateOf(0)
+        private set
+
+    fun record(item: VideoItem) {
+        items.removeAll { it.first.id == item.id }
+        items.add(0, item to System.currentTimeMillis())
+        while (items.size > 20) items.removeAt(items.size - 1)
+        version++
+    }
+
+    /** [server] with the lately opened videos YouTube hasn't listed yet put in front. */
+    fun mergeInto(server: List<VideoItem>): List<VideoItem> {
+        val cutoff = System.currentTimeMillis() - 12L * 60 * 60 * 1000
+        val listed = server.mapTo(HashSet()) { it.id }
+        val local = items.filter { it.second > cutoff && it.first.id !in listed }.map { it.first }
+        return local + server
+    }
+}
+
+/**
  * How Home refreshes. Off (the default): a refresh shows what YouTube picked for the account, in its own
  * order. On: it reads further into YouTube's list, for videos not shown yet this session.
  */
@@ -238,7 +264,11 @@ class FeedState(
 class LibraryData(scope: CoroutineScope, context: Context) {
     val home = FeedState(scope, prefetchTop = 2, freshOnRefresh = true) { InnerTube.home(it) }
     val subscriptions = FeedState(scope, prefetchTop = 2) { InnerTube.subscriptionsFeed(it) }
-    val history = FeedState(scope) { InnerTube.history(it) }
+    // YouTube can take a while to list what was just watched, so the first page also carries what this phone played.
+    val history = FeedState(scope) { token ->
+        val page = InnerTube.history(token)
+        if (token == null) page.copy(videos = RecentWatched.mergeInto(page.videos)) else page
+    }
     /** The Library's Watch later and Liked videos rows (their full lists open as playlists). */
     val watchLater = FeedState(scope) { InnerTube.playlist("WL", it) }
     val liked = FeedState(scope) { InnerTube.playlist("LL", it) }

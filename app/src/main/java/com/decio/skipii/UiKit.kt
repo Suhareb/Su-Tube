@@ -74,6 +74,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -307,7 +308,7 @@ fun VideoCard(video: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifi
         Box {
             Thumbnail(video.thumbnail, Modifier.fillMaxWidth().aspectRatio(16f / 9f), radius = 23)
             DurationPill(video.durationSec, Modifier.align(Alignment.BottomEnd).padding(10.dp))
-            ResumeBar(video.id, Modifier.align(Alignment.BottomStart))
+            ResumeBar(video.id, Modifier.align(Alignment.BottomStart), serverPercent = video.watchedPercent)
         }
         Row(modifier = Modifier.padding(start = 8.dp, end = 6.dp, top = 12.dp, bottom = 10.dp)) {
             val openChannel = LocalChannelOpener.current
@@ -401,11 +402,12 @@ fun VideoRow(video: VideoItem, onClick: () -> Unit, trailing: (@Composable () ->
 
 /** How much of a video was watched, as a thin primary bar along the thumbnail's bottom. */
 @Composable
-fun ResumeBar(videoId: String, modifier: Modifier = Modifier) {
-    val progress = ResumeStore.progress(videoId) ?: return
+fun ResumeBar(videoId: String, modifier: Modifier = Modifier, serverPercent: Int? = null, inset: Dp = 14.dp, thickness: Dp = 4.dp) {
+    // What this phone knows first (it is exact and instant), else what YouTube says the account has watched.
+    val progress = ResumeStore.progress(videoId) ?: serverPercent?.takeIf { it > 0 }?.let { (it / 100f).coerceIn(0f, 1f) } ?: return
     val c = MaterialTheme.colorScheme
-    Box(modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp).height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.45f))) {
-        Box(Modifier.fillMaxWidth(progress).height(4.dp).clip(CircleShape).background(c.primary))
+    Box(modifier.fillMaxWidth().padding(horizontal = inset, vertical = 6.dp).height(thickness).clip(CircleShape).background(Color.White.copy(alpha = 0.45f))) {
+        Box(Modifier.fillMaxWidth(progress).height(thickness).clip(CircleShape).background(c.primary))
     }
 }
 

@@ -60,6 +60,8 @@ data class VideoItem(
     val feedback: CardFeedback? = null,
     /** When it was published (epoch milliseconds), where the source says; Shorts show it as a date. */
     val publishedMs: Long? = null,
+    /** How much of it this account has watched, as YouTube reports it (1 to 100); null when none or unknown. */
+    val watchedPercent: Int? = null,
 )
 
 /** Tokens YouTube puts on a signed-in card for its feedback items; sent back as they are ([InnerTube.sendFeedback]). */

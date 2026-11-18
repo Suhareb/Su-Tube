@@ -579,7 +579,7 @@ private fun ShelfVideo(video: VideoItem, onClick: () -> Unit) {
         Box {
             Thumbnail(video.thumbnail, Modifier.fillMaxWidth().aspectRatio(16f / 9f), radius = 16)
             DurationPill(video.durationSec, Modifier.align(Alignment.BottomEnd).padding(7.dp), small = true)
-            ResumeBar(video.id, Modifier.align(Alignment.BottomStart))
+            ResumeBar(video.id, Modifier.align(Alignment.BottomStart), serverPercent = video.watchedPercent)
         }
         Text(
             video.title, Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp),

@@ -601,7 +601,7 @@ private fun TvMoreCard(video: VideoItem, enabled: Boolean, onClick: () -> Unit) 
         Box {
             Thumbnail(video.thumbnail, Modifier.fillMaxWidth().aspectRatio(16f / 9f), radius = 16)
             DurationPill(video.durationSec, Modifier.align(Alignment.BottomEnd).padding(7.dp), small = true)
-            ResumeBar(video.id, Modifier.align(Alignment.BottomStart))
+            ResumeBar(video.id, Modifier.align(Alignment.BottomStart), serverPercent = video.watchedPercent)
         }
         Spacer(Modifier.height(8.dp))
         Text(video.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)

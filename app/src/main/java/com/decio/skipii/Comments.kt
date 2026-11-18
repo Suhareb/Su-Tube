@@ -139,6 +139,7 @@ class CommentsState(private val scope: CoroutineScope) {
         private set
     var newestFirst by mutableStateOf(false)
         private set
+        private set
     private var next: String? = null
     val hasMore get() = next != null
 
@@ -939,6 +940,9 @@ private fun LazyListScope.commentThreads(state: CommentsState, sticky: Boolean, 
                 item(key = keyPrefix + comment.id) { CommentRow(comment, state, threadOpen = true) }
             }
             replyNodes(replyTree(replies), state, keyPrefix, depth = 1, trail = emptyList())
+            // A pinned comment stays pinned until another pinned item arrives. This invisible one, after the last
+            // reply, is that: it pushes the comment out, so the comments below scroll on their own.
+            if (sticky) stickyHeader(key = keyPrefix + "end-" + comment.id) { Spacer(Modifier.height(1.dp)) }
         }
     }
 }
