@@ -1026,6 +1026,7 @@ private fun entries(): List<Entry> = buildList {
     add(Entry(ap, "mode", str(R.string.settings_mode), listOf(str(R.string.ui_mode_system), str(R.string.ui_mode_light), str(R.string.ui_mode_dark))))
     add(Entry(ap, "amoled", str(R.string.settings_amoled_title), listOf(str(R.string.settings_amoled_line), "AMOLED", "OLED")))
     add(Entry(ap, "font", str(R.string.ui_font_title), listOf(str(R.string.ui_font_line), "ttf", "otf", "typeface")))
+    add(Entry(ap, "nav_glass", str(R.string.ui_nav_glass_title), listOf(str(R.string.ui_nav_glass_line), "liquid", "glass", "blur", "navigation")))
     add(Entry(ap, "home_fresh", str(R.string.ui_home_fresh_title), listOf(str(R.string.ui_home_fresh_line), "home", "feed", "algorithm", "recommendations")))
     add(Entry(ap, "theme", str(R.string.settings_theme), listOf(str(R.string.ui_theme_wallpaper)) + SKIPII_THEMES.map { it.name }))
     add(Entry(SettingsPage.Language, "lang", str(R.string.language_title), AppLanguage.choices.map { it.name } + str(R.string.language_phone)))
@@ -1657,6 +1658,13 @@ private fun AppearancePage() {
     Spacer(Modifier.height(14.dp))
     Joined(1) { _, shape ->
         SwitchSetting(
+            "nav_glass", shape, stringResource(R.string.ui_nav_glass_title), stringResource(R.string.ui_nav_glass_line),
+            NavGlass.enabled, icon = Icons.Rounded.Contrast,
+        ) { NavGlass.choose(it) }
+    }
+    Spacer(Modifier.height(14.dp))
+    Joined(1) { _, shape ->
+        SwitchSetting(
             "home_fresh", shape, stringResource(R.string.ui_home_fresh_title), stringResource(R.string.ui_home_fresh_line),
             HomeFeed.deepRefresh, icon = Icons.Rounded.Refresh,
         ) { HomeFeed.choose(it) }
@@ -1800,7 +1808,7 @@ private fun AboutPage(player: PlayerState) {
     Spacer(Modifier.height(14.dp))
     val scope = rememberCoroutineScope()
     val shareTitle = stringResource(R.string.settings_crash_share)
-    Joined(4) { i, shape ->
+    Joined(5) { i, shape ->
         if (i == 0) {
             LinkSetting("version", shape, Icons.Rounded.SystemUpdateAlt, stringResource(R.string.settings_version, BuildConfig.VERSION_NAME), updateStatus()) {
                 if (AppUpdate.available != null) whatsNew = true else AppUpdate.checkNow()
@@ -1822,6 +1830,11 @@ private fun AboutPage(player: PlayerState) {
             LinkSetting("links", shape, Icons.Rounded.Link, stringResource(R.string.settings_open_links_title), stringResource(R.string.settings_open_links_line)) {
                 context.openLinkSettings { player.actionMessage = it }
             }
+        } else if (i == 3) {
+            LinkSetting(
+                "history_sync", shape, Icons.Rounded.Refresh, stringResource(R.string.settings_history_sync_title),
+                WatchSync.status ?: stringResource(R.string.settings_history_sync_none),
+            ) { }
         } else {
             LinkSetting("source", shape, Icons.Rounded.Code, stringResource(R.string.settings_source), stringResource(R.string.settings_source_line)) {
                 context.openOrSay(Intent(Intent.ACTION_VIEW, Uri.parse(SourceUrl))) { player.actionMessage = it }

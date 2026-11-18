@@ -308,7 +308,10 @@ private class WatchTimeReporter(private val player: ExoPlayer) : Player.Listener
         if (player.isPlaying) startStretch()
         io.execute {
             val started = runCatching { InnerTube.startWatch(id) }
-                .onFailure { Log.w("Skipii", "watch start for $id", it) }.getOrNull()
+                .onFailure {
+                    Log.w("Skipii", "watch start for $id", it)
+                    WatchSync.report("Couldn't reach YouTube: ${it.message ?: it.javaClass.simpleName}", ok = false)
+                }.getOrNull()
             main.post { if (videoId == id) session = started }
         }
     }
@@ -380,7 +383,10 @@ private class WatchTimeReporter(private val player: ExoPlayer) : Player.Listener
         starts.clear(); ends.clear()
         io.execute {
             runCatching { InnerTube.pingWatchtime(s, position, st, et, playing, elapsed, final) }
-                .onFailure { Log.w("Skipii", "watch time for ${s.videoId}", it) }
+                .onFailure {
+                    Log.w("Skipii", "watch time for ${s.videoId}", it)
+                    WatchSync.report("Watch time not accepted: ${it.message ?: it.javaClass.simpleName}", ok = false)
+                }
         }
     }
 

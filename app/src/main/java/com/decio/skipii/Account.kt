@@ -712,12 +712,28 @@ object InnerTube {
      * Returns the session for [pingWatchtime], or null if YouTube gave no tracking URLs.
      */
     fun startWatch(videoId: String): WatchSession? {
-        val tracking = post("player", JSONObject().put("videoId", videoId)).optJSONObject("playbackTracking") ?: return null
+        val response = post("player", JSONObject().put("videoId", videoId))
+        val tracking = response.optJSONObject("playbackTracking")
+        if (tracking == null) {
+            // Usually YouTube refusing the request itself (a VPN's address, a sign-in check): say why.
+            val status = response.optJSONObject("playabilityStatus")
+            WatchSync.report(
+                "YouTube gave no history link for this video" +
+                    (status?.optString("status")?.ifBlank { null }?.let { " ($it" + (status.optString("reason").ifBlank { null }?.let { r -> ": $r" } ?: "") + ")" } ?: ""),
+                ok = false,
+            )
+            return null
+        }
         val cpn = (1..16).map { CPN_ALPHABET[Random.nextInt(CPN_ALPHABET.length)] }.joinToString("")
         tracking.optJSONObject("videostatsPlaybackUrl")?.optString("baseUrl")?.ifBlank { null }?.let { base ->
             ping(base, "ver=2&cpn=$cpn")
         }
-        val watchtime = tracking.optJSONObject("videostatsWatchtimeUrl")?.optString("baseUrl")?.ifBlank { null } ?: return null
+        val watchtime = tracking.optJSONObject("videostatsWatchtimeUrl")?.optString("baseUrl")?.ifBlank { null }
+        if (watchtime == null) {
+            WatchSync.report("YouTube gave no watch-time link for this video", ok = false)
+            return null
+        }
+        WatchSync.report("Sent to YouTube", ok = true)
         return WatchSession(videoId, watchtime, cpn)
     }
 
@@ -1261,4 +1277,19 @@ internal fun parseSaveChoices(answer: JSONObject): List<PlaylistChoice> {
         }
     }
     return out.values.toList()
+}
+
+
+/** What the last attempt to add a video to the account's YouTube watch history did, for Settings › About. */
+object WatchSync {
+    var status by mutableStateOf<String?>(null)
+        private set
+    var ok by mutableStateOf(true)
+        private set
+
+    fun report(text: String, ok: Boolean) {
+        val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
+        this.ok = ok
+        status = "$text, $time"
+    }
 }

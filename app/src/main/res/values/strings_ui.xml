@@ -211,4 +211,8 @@
     <string name="inbox_title" translatable="false">Notifications</string>
     <string name="inbox_empty" translatable="false">No notifications yet.</string>
     <string name="inbox_error" translatable="false">Couldn\'t load your notifications.</string>
+    <string name="settings_history_sync_title" translatable="false">YouTube history sync</string>
+    <string name="settings_history_sync_none" translatable="false">Nothing sent yet: play a video while signed in</string>
+    <string name="ui_nav_glass_title" translatable="false">Glass navigation bar</string>
+    <string name="ui_nav_glass_line" translatable="false">A see-through bar with a light sheen and edge. Hold a tab and slide to switch tabs, with or without it.</string>
 </resources>

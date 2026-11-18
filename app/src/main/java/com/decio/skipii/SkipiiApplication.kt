@@ -24,6 +24,7 @@ class SkipiiApplication : Application(), ImageLoaderFactory {
         AppFont.init(this)
         HomeFeed.init(this)
         CommentPrefs.init(this)
+        NavGlass.init(this)
         QualityPreference.init(this)
         PlaybackSpeed.init(this)
         AudioOnly.init(this)

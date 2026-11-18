@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +58,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -211,6 +215,9 @@ internal fun NavPill(
     val playInteraction = remember { MutableInteractionSource() }
     val playPressed by playInteraction.collectIsPressedAsState()
     val playScale = animateFloatAsState(if (playPressed && !reduced) 0.94f else 1f, spring(dampingRatio = 0.6f, stiffness = 1400f), label = "playPress")
+    // Hold a tab, then slide along the bar: the tab under the finger shows as selected until you let go.
+    var slideTarget by remember { mutableStateOf<Tab?>(null) }
+    val shownTabs = Tab.entries.filter { it != Tab.Shorts || ShortsSetting.enabled }
 
     Box(modifier.widthIn(max = NavWidth).height(NavHeight).fillMaxWidth().onPlaced { anchors.outer = it }) {
         Box(
@@ -255,7 +262,28 @@ internal fun NavPill(
                     ambientShadowColor = Color.Black
                     spotShadowColor = Color.Black
                 }
-                .drawBehind { drawRect(c.surfaceVariant, alpha = 1f - shortsBarFade(shorts())) }
+                .drawBehind {
+                    val away = 1f - shortsBarFade(shorts())
+                    // Glass (Settings › Appearance): see-through tone, a sheen along the top, a light edge; the
+                    // open player's bar is solid again as it opens.
+                    val glass = if (NavGlass.enabled) 1f - ramp(progress(), 0f, 0.3f) else 0f
+                    drawRect(c.surfaceVariant, alpha = away * (1f - 0.4f * glass))
+                    if (glass > 0f) {
+                        drawRect(
+                            Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f * glass), Color.Transparent), endY = size.height * 0.6f),
+                            alpha = away,
+                        )
+                        val edge = 1.2.dp.toPx()
+                        drawRoundRect(
+                            Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f * glass), Color.White.copy(alpha = 0.08f * glass))),
+                            topLeft = Offset(edge / 2f, edge / 2f),
+                            size = Size(size.width - edge, size.height - edge),
+                            cornerRadius = CornerRadius((size.height - edge) / 2f),
+                            style = Stroke(edge),
+                            alpha = away,
+                        )
+                    }
+                }
                 .playerBarGestures(bar, player, enabled = controlsActive, view = view, gate = gate, onPick = onPick),
         ) {
           CompositionLocalProvider(LocalContentColor provides c.onSurfaceVariant) {
@@ -293,13 +321,52 @@ internal fun NavPill(
                             val tabs = measurable.measure(Constraints.fixed(full, constraints.maxHeight))
                             layout(constraints.maxWidth, constraints.maxHeight) { tabs.place((constraints.maxWidth - full) / 2, 0) }
                         }
-                        .padding(BarPadding),
+                        .padding(BarPadding)
+                        // Press and hold, then slide: the tab under the finger lights up, and letting go goes
+                        // there. Only after the hold, so scrolling or a plain tap never starts it.
+                        .pointerInput(shownTabs.size, controlsActive, tabsEnabled, selected) {
+                            if (controlsActive || !tabsEnabled) return@pointerInput
+                            // Equal slices of the bar, not the tabs' own (growing) bounds, so the target can't flicker.
+                            fun tabAt(x: Float): Tab {
+                                val n = shownTabs.size
+                                return shownTabs[((x / size.width) * n).toInt().coerceIn(0, n - 1)]
+                            }
+                            var first: Tab? = null
+                            var moved = false
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { offset ->
+                                    first = tabAt(offset.x)
+                                    slideTarget = first
+                                    moved = false
+                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                },
+                                onDrag = { change, _ ->
+                                    change.consume()
+                                    val t = tabAt(change.position.x)
+                                    if (t != slideTarget) {
+                                        slideTarget = t
+                                        moved = true
+                                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                    }
+                                },
+                                onDragEnd = {
+                                    // Without a slide the tab's own tap handles it.
+                                    val target = slideTarget
+                                    if (moved && target != null) {
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                        onSelect(target)
+                                    }
+                                    slideTarget = null
+                                },
+                                onDragCancel = { slideTarget = null },
+                            )
+                        },
                     horizontalArrangement = Arrangement.spacedBy(BarGap),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val shown = Tab.entries.filter { it != Tab.Shorts || ShortsSetting.enabled }
+                    val shown = shownTabs
                     shown.forEachIndexed { i, t ->
-                        val active = t == selected
+                        val active = t == (slideTarget ?: selected)
                         val spec = if (reduced) snap<Float>() else tween(260, easing = Motion.Emphasized)
                         val labelColor by animateColorAsState(
                             if (active) c.onPrimary else c.onSurfaceVariant,
@@ -612,3 +679,21 @@ private fun backOut(t: Float, tension: Float): Float {
 
 /** The bar's own extras (card, list, track) only ever open on the fully open player. */
 private fun barGate(progress: Float) = ramp(progress, 0.85f, 1f)
+
+
+/** The tab bar's glass look (Settings › Appearance): see-through, with a sheen and a light edge. Off to begin with. */
+object NavGlass {
+    private var prefs: android.content.SharedPreferences? = null
+    var enabled by mutableStateOf(false)
+        private set
+
+    fun init(context: android.content.Context) {
+        val p = context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE).also { prefs = it }
+        enabled = p.getBoolean("nav_glass", false)
+    }
+
+    fun choose(on: Boolean) {
+        enabled = on
+        prefs?.edit()?.putBoolean("nav_glass", on)?.apply()
+    }
+}
