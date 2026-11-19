@@ -703,38 +703,92 @@ object InnerTube {
         answer.optString("playlistId").ifBlank { throw IOException("YouTube didn't create the playlist") }
     }
 
-    /** One video being watched: the tracking URL for its watch-time pings. */
-    class WatchSession(val videoId: String, val watchtimeUrl: String, val cpn: String)
+    /** One video being watched: the tracking URL for its watch-time pings ([web]: the web client's flavour of them). */
+    class WatchSession(val videoId: String, val watchtimeUrl: String, val cpn: String, val web: Boolean = true)
 
-    /**
-     * Starts watching [videoId] on the account, as the web player does: fetch the signed-in
-     * player response and ping its playback URL, which puts the video in watch history.
-     * Returns the session for [pingWatchtime], or null if YouTube gave no tracking URLs.
-     */
-    fun startWatch(videoId: String): WatchSession? {
-        val response = post("player", JSONObject().put("videoId", videoId))
-        val tracking = response.optJSONObject("playbackTracking")
-        if (tracking == null) {
-            // Usually YouTube refusing the request itself (a VPN's address, a sign-in check): say why.
-            val status = response.optJSONObject("playabilityStatus")
-            WatchSync.report(
-                "YouTube gave no history link for this video" +
-                    (status?.optString("status")?.ifBlank { null }?.let { " ($it" + (status.optString("reason").ifBlank { null }?.let { r -> ": $r" } ?: "") + ")" } ?: ""),
-                ok = false,
-            )
-            return null
+    /** A client other than the web one, asked only for a video's tracking links (it never plays anything). */
+    private class TrackingClient(val label: String, val nameId: String, val userAgent: String, val client: JSONObject)
+
+    // YouTube has been answering the web client's player request with "UNPLAYABLE: the page needs to be
+    // reloaded" (no tracking links at all), so these are asked next. The links are the same kind; it is the ping,
+    // sent with the account's cookies, that puts the video in its history.
+    private val trackingClients: List<TrackingClient> by lazy {
+        listOf(
+            TrackingClient(
+                "ios", "5", "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
+                JSONObject().put("clientName", "IOS").put("clientVersion", "20.10.4").put("deviceMake", "Apple")
+                    .put("deviceModel", "iPhone16,2").put("osName", "iPhone").put("osVersion", "18.3.2.22D82")
+                    .put("hl", "en").put("gl", "US"),
+            ),
+            TrackingClient(
+                "android vr", "28",
+                "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+                JSONObject().put("clientName", "ANDROID_VR").put("clientVersion", "1.60.19").put("deviceMake", "Oculus")
+                    .put("deviceModel", "Quest 3").put("osName", "Android").put("osVersion", "12L").put("androidSdkVersion", 32)
+                    .put("hl", "en").put("gl", "US"),
+            ),
+        )
+    }
+
+    /** The player response as another client sees it (no sign-in: these clients don't take the web cookies). */
+    private fun playerAs(videoId: String, c: TrackingClient): JSONObject {
+        val body = JSONObject().put("videoId", videoId).put("contentCheckOk", true).put("racyCheckOk", true)
+            .put("context", JSONObject().put("client", c.client))
+        val request = Request.Builder().url("${BASE}player?prettyPrint=false")
+            .post(body.toString().toRequestBody(JSON_TYPE))
+            .header("User-Agent", c.userAgent)
+            .header("X-Youtube-Client-Name", c.nameId)
+            .header("X-Youtube-Client-Version", c.client.optString("clientVersion"))
+            .apply { Account.visitorData()?.let { header("X-Goog-Visitor-Id", it) } }
+            .build()
+        Net.client.newCall(request).execute().use { r ->
+            val text = r.body?.string().orEmpty()
+            if (!r.isSuccessful) throw YouTubeRefusedException(r.code)
+            return JSONObject(text)
         }
+    }
+
+    /** Why a player response gave no tracking links, in a few words. */
+    private fun whyNoTracking(response: JSONObject): String {
+        val status = response.optJSONObject("playabilityStatus") ?: return "no answer"
+        val reason = status.optString("reason").ifBlank { null }
+        return status.optString("status").ifBlank { "no status" } + (reason?.let { ": $it" } ?: "")
+    }
+
+    /** The session a player response's tracking links make, after the playback ping that joins the history; null without them. */
+    private fun sessionFrom(videoId: String, response: JSONObject, web: Boolean): WatchSession? {
+        val tracking = response.optJSONObject("playbackTracking") ?: return null
+        val watchtime = tracking.optJSONObject("videostatsWatchtimeUrl")?.optString("baseUrl")?.ifBlank { null } ?: return null
         val cpn = (1..16).map { CPN_ALPHABET[Random.nextInt(CPN_ALPHABET.length)] }.joinToString("")
         tracking.optJSONObject("videostatsPlaybackUrl")?.optString("baseUrl")?.ifBlank { null }?.let { base ->
             ping(base, "ver=2&cpn=$cpn")
         }
-        val watchtime = tracking.optJSONObject("videostatsWatchtimeUrl")?.optString("baseUrl")?.ifBlank { null }
-        if (watchtime == null) {
-            WatchSync.report("YouTube gave no watch-time link for this video", ok = false)
-            return null
+        return WatchSession(videoId, watchtime, cpn, web)
+    }
+
+    /**
+     * Starts watching [videoId] on the account, as the web player does: fetch the player response and ping its
+     * playback URL, which puts the video in watch history. Asks the web client first, then others if it
+     * gives no tracking links. Returns the session for [pingWatchtime], or null if none did.
+     */
+    fun startWatch(videoId: String): WatchSession? {
+        val failures = ArrayList<String>()
+        runCatching { post("player", JSONObject().put("videoId", videoId)) }
+            .onSuccess { response ->
+                sessionFrom(videoId, response, web = true)?.let { WatchSync.report("Sent to YouTube", ok = true); return it }
+                failures += "web " + whyNoTracking(response)
+            }
+            .onFailure { failures += "web " + (it.message ?: it.javaClass.simpleName) }
+        for (c in trackingClients) {
+            runCatching { playerAs(videoId, c) }
+                .onSuccess { response ->
+                    sessionFrom(videoId, response, web = false)?.let { WatchSync.report("Sent to YouTube (via ${c.label})", ok = true); return it }
+                    failures += c.label + " " + whyNoTracking(response)
+                }
+                .onFailure { failures += c.label + " " + (it.message ?: it.javaClass.simpleName) }
         }
-        WatchSync.report("Sent to YouTube", ok = true)
-        return WatchSession(videoId, watchtime, cpn)
+        WatchSync.report("YouTube gave no history link: " + failures.joinToString("; "), ok = false)
+        return null
     }
 
     /**
@@ -754,7 +808,8 @@ object InnerTube {
             append("&state=").append(if (playing) "playing" else "paused")
             append("&rt=").append(rt).append("&rtn=").append(rt).append("&rti=").append(elapsedSec.toInt())
             append("&lact=").append(Random.nextInt(800, 4000))
-            append("&volume=100&muted=0&fs=0&hl=en_US&cr=US&c=WEB&cver=").append(Account.clientVersion())
+            if (session.web) append("&volume=100&muted=0&fs=0&hl=en_US&cr=US&c=WEB&cver=").append(Account.clientVersion())
+            else append("&volume=100&muted=0&fs=0")
             if (final) append("&final=1")
         }
         ping(session.watchtimeUrl, query)
