@@ -12,7 +12,7 @@ android {
         applicationId = "com.sutube"
         minSdk = 26
         targetSdk = 36
-        versionCode = 108
+        versionCode = 109
         versionName = "1.08"
     }
 
