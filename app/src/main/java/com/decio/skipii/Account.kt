@@ -769,6 +769,42 @@ object InnerTube {
         }
     }
 
+    /**
+     * The player response a browser gets: the watch page, fetched with the account's cookies, carries it inline
+     * (`ytInitialPlayerResponse`). It's an ordinary page request, so it doesn't meet the checks the player API
+     * fails with "the page needs to be reloaded", and its tracking links belong to the signed-in account.
+     */
+    private fun playerFromPage(videoId: String): JSONObject {
+        val request = Request.Builder().url("${Account.ORIGIN}/watch?v=$videoId&bpctr=9999999999&has_verified=1")
+            .header("User-Agent", Net.USER_AGENT)
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .header("Cookie", Account.cookieHeader())
+            .build()
+        val html = Net.client.newCall(request).execute().use { r ->
+            Account.absorbSetCookies(r.headers("Set-Cookie"))
+            if (!r.isSuccessful) throw YouTubeRefusedException(r.code)
+            r.body?.string().orEmpty()
+        }
+        val marker = "ytInitialPlayerResponse = "
+        val start = html.indexOf(marker).takeIf { it >= 0 }?.plus(marker.length) ?: error("no player data in the page")
+        // The object runs to its matching brace; strings may hold braces, so track them.
+        var depth = 0
+        var inString = false
+        var i = start
+        while (i < html.length) {
+            val ch = html[i]
+            if (inString) {
+                if (ch == '\\') i++ else if (ch == '"') inString = false
+            } else when (ch) {
+                '"' -> inString = true
+                '{' -> depth++
+                '}' -> { depth--; if (depth == 0) { i++; break } }
+            }
+            i++
+        }
+        return JSONObject(html.substring(start, i))
+    }
+
     /** Why a player response gave no tracking links, in a few words. */
     private fun whyNoTracking(response: JSONObject): String {
         val status = response.optJSONObject("playabilityStatus") ?: return "no answer"
@@ -800,6 +836,13 @@ object InnerTube {
                 failures += "web " + whyNoTracking(response)
             }
             .onFailure { failures += "web " + (it.message ?: it.javaClass.simpleName) }
+        // The watch page, as a signed-in browser reads it.
+        runCatching { playerFromPage(videoId) }
+            .onSuccess { response ->
+                sessionFrom(videoId, response, web = true)?.let { WatchSync.report("Sent to YouTube (via the watch page)", ok = true); return it }
+                failures += "page " + whyNoTracking(response)
+            }
+            .onFailure { failures += "page " + (it.message ?: it.javaClass.simpleName) }
         for (c in trackingClients) {
             runCatching { playerAs(videoId, c) }
                 .onSuccess { response ->
