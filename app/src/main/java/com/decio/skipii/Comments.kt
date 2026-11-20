@@ -132,11 +132,13 @@ class CommentsState(private val scope: CoroutineScope) {
     var disabled by mutableStateOf(false)
         private set
     var loading by mutableStateOf(false)
+        private set
     var error by mutableStateOf<String?>(null)
     /** YouTube's sort menu tokens (Top, Newest first) for this video; fewer than two = no sorting offered. */
     var sortTokens by mutableStateOf<List<String>>(emptyList())
         private set
     var newestFirst by mutableStateOf(false)
+        private set
         private set
     private var next: String? = null
     val hasMore get() = next != null

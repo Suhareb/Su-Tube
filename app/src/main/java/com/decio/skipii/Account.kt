@@ -706,42 +706,63 @@ object InnerTube {
     /** One video being watched: the tracking URL for its watch-time pings ([web]: the web client's flavour of them). */
     class WatchSession(val videoId: String, val watchtimeUrl: String, val cpn: String, val web: Boolean = true)
 
-    /** A client other than the web one, asked only for a video's tracking links (it never plays anything). */
-    private class TrackingClient(val label: String, val nameId: String, val userAgent: String, val client: JSONObject)
+    /**
+     * A client other than the web one, asked only for a video's tracking links (it never plays anything). With
+     * [auth] the request carries the account's cookies and signature, so the links belong to the account, which is
+     * what puts a video in its history. Without, they belong to nobody and the ping alone can't make a history.
+     */
+    private class TrackingClient(val label: String, val nameId: String, val userAgent: String, val client: JSONObject, val auth: Boolean)
 
-    // YouTube has been answering the web client's player request with "UNPLAYABLE: the page needs to be
-    // reloaded" (no tracking links at all), so these are asked next. The links are the same kind; it is the ping,
-    // sent with the account's cookies, that puts the video in its history.
+    // YouTube answers the web client's player request with "UNPLAYABLE: the page needs to be reloaded" (no tracking
+    // links), so these are asked next. The TV client is the one YouTube still takes web cookies on (as yt-dlp does):
+    // signed in, as the TV app does, its tracking links are the account's.
     private val trackingClients: List<TrackingClient> by lazy {
+        val tvAgent = "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko), Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)"
         listOf(
+            TrackingClient(
+                "tv", "7", tvAgent,
+                JSONObject().put("clientName", "TVHTML5").put("clientVersion", "7.20260114.12.00").put("hl", "en").put("gl", "US"),
+                auth = true,
+            ),
+            TrackingClient(
+                "tv (older)", "7", "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version",
+                JSONObject().put("clientName", "TVHTML5").put("clientVersion", "4").put("hl", "en").put("gl", "US"),
+                auth = true,
+            ),
             TrackingClient(
                 "ios", "5", "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
                 JSONObject().put("clientName", "IOS").put("clientVersion", "20.10.4").put("deviceMake", "Apple")
                     .put("deviceModel", "iPhone16,2").put("osName", "iPhone").put("osVersion", "18.3.2.22D82")
                     .put("hl", "en").put("gl", "US"),
-            ),
-            TrackingClient(
-                "android vr", "28",
-                "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
-                JSONObject().put("clientName", "ANDROID_VR").put("clientVersion", "1.60.19").put("deviceMake", "Oculus")
-                    .put("deviceModel", "Quest 3").put("osName", "Android").put("osVersion", "12L").put("androidSdkVersion", 32)
-                    .put("hl", "en").put("gl", "US"),
+                auth = false,
             ),
         )
     }
 
-    /** The player response as another client sees it (no sign-in: these clients don't take the web cookies). */
+    /** The player response as another client sees it. */
     private fun playerAs(videoId: String, c: TrackingClient): JSONObject {
         val body = JSONObject().put("videoId", videoId).put("contentCheckOk", true).put("racyCheckOk", true)
             .put("context", JSONObject().put("client", c.client))
+        val auth = if (c.auth) Account.authorization() else null
         val request = Request.Builder().url("${BASE}player?prettyPrint=false")
             .post(body.toString().toRequestBody(JSON_TYPE))
             .header("User-Agent", c.userAgent)
             .header("X-Youtube-Client-Name", c.nameId)
             .header("X-Youtube-Client-Version", c.client.optString("clientVersion"))
-            .apply { Account.visitorData()?.let { header("X-Goog-Visitor-Id", it) } }
+            .apply {
+                if (auth != null) {
+                    header("Cookie", Account.cookieHeader())
+                    header("Authorization", auth)
+                    header("Origin", Account.ORIGIN)
+                    header("X-Origin", Account.ORIGIN)
+                    header("Referer", Account.ORIGIN + "/tv")
+                    header("X-Goog-AuthUser", "0")
+                }
+                Account.visitorData()?.let { header("X-Goog-Visitor-Id", it) }
+            }
             .build()
         Net.client.newCall(request).execute().use { r ->
+            if (auth != null) Account.absorbSetCookies(r.headers("Set-Cookie"))
             val text = r.body?.string().orEmpty()
             if (!r.isSuccessful) throw YouTubeRefusedException(r.code)
             return JSONObject(text)
@@ -782,7 +803,12 @@ object InnerTube {
         for (c in trackingClients) {
             runCatching { playerAs(videoId, c) }
                 .onSuccess { response ->
-                    sessionFrom(videoId, response, web = false)?.let { WatchSync.report("Sent to YouTube (via ${c.label})", ok = true); return it }
+                    sessionFrom(videoId, response, web = false)?.let {
+                        // Without the account in the request the links are nobody's: YouTube takes the ping and lists nothing.
+                        if (c.auth) WatchSync.report("Sent to YouTube (via ${c.label})", ok = true)
+                        else WatchSync.report("Sent, but not tied to your account (via ${c.label}): YouTube may not list it. " + failures.joinToString("; "), ok = false)
+                        return it
+                    }
                     failures += c.label + " " + whyNoTracking(response)
                 }
                 .onFailure { failures += c.label + " " + (it.message ?: it.javaClass.simpleName) }
