@@ -39,6 +39,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -160,6 +161,8 @@ class CommentsState(private val scope: CoroutineScope) {
     val repliesLoading = mutableStateMapOf<String, Boolean>()
     /** Replies (by id) whose answers are folded away (false); a reply that was answered shows them under it to begin with. */
     val nestedOpen = mutableStateMapOf<String, Boolean>()
+    /** The token for the next batch of replies under a comment (by id); absent when all are in. */
+    val repliesNext = mutableStateMapOf<String, String>()
 
     /** The search over the loaded comments (the search button in the sheet's title). */
     var searchOpen by mutableStateOf(false)
@@ -181,7 +184,7 @@ class CommentsState(private val scope: CoroutineScope) {
         videoId = id
         comments = emptyList(); total = -1; disabled = false; error = null; next = null
         sortTokens = emptyList(); newestFirst = false
-        replies.clear(); repliesLoading.clear(); nestedOpen.clear(); replyingTo = null; draft = ""; postError = null
+        replies.clear(); repliesLoading.clear(); nestedOpen.clear(); repliesNext.clear(); replyingTo = null; draft = ""; postError = null
         searchOpen = false; searchQuery = ""
         loading = true
     }
@@ -201,6 +204,7 @@ class CommentsState(private val scope: CoroutineScope) {
         replies.clear()
         repliesLoading.clear()
         nestedOpen.clear()
+        repliesNext.clear()
         searchOpen = false
         searchQuery = ""
         liked.clear()
@@ -276,7 +280,36 @@ class CommentsState(private val scope: CoroutineScope) {
         repliesLoading[comment.id] = true
         scope.launch {
             runCatching { CommentFeed.more(page) }
-                .onSuccess { if (videoId == id) { replies[comment.id] = it.comments; arrived(it.comments) } }
+                .onSuccess {
+                    if (videoId == id) {
+                        replies[comment.id] = it.comments
+                        it.next?.let { next -> repliesNext[comment.id] = next }
+                        arrived(it.comments)
+                    }
+                }
+            repliesLoading.remove(comment.id)
+        }
+    }
+
+    /** The next batch of replies under [comment], added below the ones showing. */
+    fun loadMoreReplies(comment: Comment) {
+        val id = videoId ?: return
+        val token = repliesNext[comment.id] ?: return
+        if (repliesLoading[comment.id] == true) return
+        repliesLoading[comment.id] = true
+        scope.launch {
+            runCatching { CommentFeed.more(token) }
+                .onSuccess { page ->
+                    if (videoId == id) {
+                        val have = replies[comment.id].orEmpty()
+                        val seen = have.mapTo(HashSet()) { it.id }
+                        replies[comment.id] = have + page.comments.filter { seen.add(it.id) }
+                        val next = page.next
+                        if (next != null) repliesNext[comment.id] = next else repliesNext.remove(comment.id)
+                        arrived(page.comments)
+                    }
+                }
+                .onFailure { repliesNext.remove(comment.id) }
             repliesLoading.remove(comment.id)
         }
     }
@@ -289,6 +322,7 @@ class CommentsState(private val scope: CoroutineScope) {
 
     fun hideReplies(comment: Comment) {
         replies.remove(comment.id)
+        repliesNext.remove(comment.id)
     }
 
     // ── Posting (signed in) ──
@@ -439,7 +473,7 @@ fun CommentsPanel(state: CommentsState, partialTop: Dp, onClose: () -> Unit) {
             if (state.searchOpen && CommentPrefs.search) item(key = "commentSearch") {
                 CommentSearchField(state.searchQuery) { state.searchQuery = it }
             }
-            commentThreads(state, sticky = true, keyPrefix = "", background = c.surfaceContainerLow)
+            commentThreads(state, keyPrefix = "")
             if (state.loading || state.hasMore) item {
                 Box(Modifier.fillMaxWidth().padding(20.dp), Alignment.Center) {
                     CircularProgressIndicator(color = c.primary, strokeWidth = 3.dp, modifier = Modifier.size(26.dp))
@@ -630,7 +664,7 @@ fun LazyListScope.inlineComments(state: CommentsState) {
     if (Account.signedIn && !state.disabled) item(key = "commentsComposer") {
         Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).clip(RoundedCornerShape(26.dp))) { Composer(state) }
     }
-    commentThreads(state, sticky = false, keyPrefix = "comment-", background = Color.Transparent)
+    commentThreads(state, keyPrefix = "comment-")
     when {
         state.loading || state.hasMore -> item(key = "commentsMore") {
             // Composed as it nears the screen: that's the cue for the next page.
@@ -863,23 +897,22 @@ private fun CommentRow(
                     )
                 }
             }
-            if (!isReply && comment.replyCount > 0 && comment.repliesToken != null) {
-                val open = state.replies.containsKey(comment.id)
+            if (!isReply && comment.replyCount > 0 && comment.repliesToken != null && !state.replies.containsKey(comment.id)) {
                 val busy = state.repliesLoading[comment.id] == true
                 Row(
                     modifier = Modifier
                         .padding(top = 6.dp)
-                        .pressable { if (open) state.hideReplies(comment) else state.loadReplies(comment) }
+                        .pressable { state.loadReplies(comment) }
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        if (open) stringResource(R.string.comments_hide_replies)
-                        else plural(R.plurals.comments_replies, comment.replyCount.toLong(), comment.replyCount.toString()),
+                        plural(R.plurals.comments_replies, comment.replyCount.toLong(), comment.replyCount.toString()),
                         color = c.primary,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 13.sp,
                     )
+                    Icon(Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.size(18.dp))
                     if (busy) {
                         Spacer(Modifier.width(8.dp))
                         CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
@@ -919,58 +952,75 @@ private fun replyTree(replies: List<Comment>): List<ReplyNode> {
 }
 
 /**
- * Every comment, each followed by its replies once opened. With [sticky] (the sheet), a comment whose replies
- * are open stays pinned at the top of the list while they scroll past, so "Hide replies" is always in reach.
- * A reply that others answered has a dropdown of its own for those answers.
+ * Every comment; once its replies are in they sit under it, tied to it by a guide line, and stay (they are not
+ * folded away again). "More replies" at the end of the thread brings the next batch. A reply that others
+ * answered has a "1 reply" button of its own that opens those answers under it.
  */
-@OptIn(ExperimentalFoundationApi::class)
-private fun LazyListScope.commentThreads(state: CommentsState, sticky: Boolean, keyPrefix: String, background: Color) {
+private fun LazyListScope.commentThreads(state: CommentsState, keyPrefix: String) {
     state.comments.forEach { comment ->
         if (!state.matchesSearch(comment)) return@forEach
         val replies = state.replies[comment.id]
-        if (replies == null) {
-            item(key = keyPrefix + comment.id) { CommentRow(comment, state) }
-        } else {
-            if (sticky) {
-                stickyHeader(key = keyPrefix + comment.id) {
-                    Box(Modifier.fillMaxWidth().background(background)) { CommentRow(comment, state, threadOpen = true, compact = true) }
+        item(key = keyPrefix + comment.id) { CommentRow(comment, state, threadOpen = replies != null) }
+        if (replies != null) {
+            val more = state.repliesNext[comment.id] != null
+            replyNodes(replyTree(replies), state, keyPrefix, depth = 1, trail = emptyList(), endsThread = !more)
+            if (more) {
+                item(key = keyPrefix + "more-" + comment.id) {
+                    MoreRepliesRow(state.repliesLoading[comment.id] == true) { state.loadMoreReplies(comment) }
                 }
-            } else {
-                item(key = keyPrefix + comment.id) { CommentRow(comment, state, threadOpen = true) }
             }
-            replyNodes(replyTree(replies), state, keyPrefix, depth = 1, trail = emptyList())
-            // A pinned comment stays pinned until another pinned item arrives. This invisible one, after the last
-            // reply, is that: it pushes the comment out, so the comments below scroll on their own.
-            if (sticky) stickyHeader(key = keyPrefix + "end-" + comment.id) { Spacer(Modifier.height(1.dp)) }
         }
     }
 }
 
-private fun LazyListScope.replyNodes(nodes: List<ReplyNode>, state: CommentsState, keyPrefix: String, depth: Int, trail: List<Int>) {
+private fun LazyListScope.replyNodes(
+    nodes: List<ReplyNode>, state: CommentsState, keyPrefix: String, depth: Int, trail: List<Int>, endsThread: Boolean,
+) {
     nodes.forEachIndexed { index, node ->
-        val last = index == nodes.lastIndex
-        // Open to begin with: the answers show right under the reply they answer (the dropdown folds them away).
-        val open = state.nestedOpen[node.reply.id] != false
+        // The last reply's line ends in its elbow, unless "more replies" follows it.
+        val last = index == nodes.lastIndex && endsThread
+        val open = state.nestedOpen[node.reply.id] == true
         val hasChildren = node.children.isNotEmpty()
         // What carries on past this reply for the rows below it: the lines above, and its own parent's line when more replies follow.
         val below = if (last) trail else trail + threadCenter(depth - 1)
         item(key = keyPrefix + "reply-" + node.reply.id) {
-            CommentRow(node.reply, state, depth = depth, trail = trail, isLast = last, threadOpen = hasChildren && open)
+            CommentRow(node.reply, state, depth = depth, trail = trail, isLast = last, threadOpen = hasChildren)
         }
         if (hasChildren) {
-            item(key = keyPrefix + "nest-" + node.reply.id) {
-                NestedRepliesToggle(node.count(), open, depth, below) { state.nestedOpen[node.reply.id] = !open }
+            if (open) {
+                replyNodes(node.children, state, keyPrefix, minOf(depth + 1, 3), below, endsThread = true)
+            } else {
+                item(key = keyPrefix + "nest-" + node.reply.id) {
+                    NestedRepliesToggle(node.count(), depth, below) { state.nestedOpen[node.reply.id] = true }
+                }
             }
-            if (open) replyNodes(node.children, state, keyPrefix, minOf(depth + 1, 3), below)
         }
     }
 }
 
-/** "Show 3 replies" under a reply that others answered; opens or closes that thread. */
+/** A guide line's elbow: down from the top at [x] (dp), curving right into a row whose text starts at [textStart] (dp). */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.guideElbow(
+    color: Color, x: Int, textStart: Int, centerY: Float, continues: Boolean,
+) {
+    val width = 1.5.dp.toPx()
+    val xp = x.dp.toPx()
+    val r = 12.dp.toPx()
+    if (continues) drawLine(color, Offset(xp, 0f), Offset(xp, size.height), strokeWidth = width, cap = StrokeCap.Round)
+    else drawLine(color, Offset(xp, 0f), Offset(xp, centerY - r), strokeWidth = width, cap = StrokeCap.Round)
+    val elbow = Path().apply {
+        moveTo(xp, centerY - r)
+        quadraticBezierTo(xp, centerY, xp + r, centerY)
+        lineTo(textStart.dp.toPx() - 4.dp.toPx(), centerY)
+    }
+    drawPath(elbow, color, style = Stroke(width = width, cap = StrokeCap.Round))
+}
+
+/** "1 reply" under a reply that others answered: opens those answers under it (and they stay). */
 @Composable
-private fun NestedRepliesToggle(count: Int, open: Boolean, depth: Int, trail: List<Int>, onClick: () -> Unit) {
+private fun NestedRepliesToggle(count: Int, depth: Int, trail: List<Int>, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val guide = c.outlineVariant
+    val textStart = threadStart(depth) + 40
     Row(
         Modifier
             .fillMaxWidth()
@@ -979,19 +1029,42 @@ private fun NestedRepliesToggle(count: Int, open: Boolean, depth: Int, trail: Li
                 trail.forEach { x ->
                     drawLine(guide, Offset(x.dp.toPx(), 0f), Offset(x.dp.toPx(), size.height), strokeWidth = width, cap = StrokeCap.Round)
                 }
-                if (open) {
-                    val x = threadCenter(depth).dp.toPx()
-                    drawLine(guide, Offset(x, 0f), Offset(x, size.height), strokeWidth = width, cap = StrokeCap.Round)
-                }
+                guideElbow(guide, threadCenter(depth), textStart, centerY = 16.dp.toPx(), continues = false)
             }
-            .padding(start = (threadStart(depth) + 40).dp, end = 20.dp)
+            .padding(start = textStart.dp, end = 20.dp)
             .pressable(onClick = onClick)
             .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            if (open) stringResource(R.string.comments_nested_hide) else stringResource(R.string.comments_nested_show, count),
+            plural(R.plurals.comments_replies, count.toLong(), count.toString()),
             color = c.primary, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
         )
+        Icon(Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.size(18.dp))
+    }
+}
+
+/** "More replies" at the end of a comment's thread: the next batch of replies. */
+@Composable
+private fun MoreRepliesRow(busy: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val guide = c.outlineVariant
+    val textStart = threadStart(0) + 48
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .drawBehind { guideElbow(guide, threadCenter(0), textStart, centerY = 16.dp.toPx(), continues = false) }
+            .padding(start = textStart.dp, end = 20.dp)
+            .pressable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(stringResource(R.string.comments_more_replies), color = c.primary, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+        Icon(Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.size(18.dp))
+        if (busy) {
+            Spacer(Modifier.width(8.dp))
+            CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
+        }
     }
 }
 
