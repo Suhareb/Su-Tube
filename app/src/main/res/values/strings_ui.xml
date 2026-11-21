@@ -78,6 +78,7 @@
 
     <!-- ── Sign-in ────────────────────────────────────────────────────────── -->
     <!-- Accessibility label of the X that leaves the sign-in page. -->
+    <string name="ui_cancel">Cancel</string>
     <string name="ui_sign_in_title">Sign in to YouTube</string>
     <!-- Under the title of the sign-in page; keep "accounts.google.com" as it is. -->
     <string name="ui_sign_in_line">accounts.google.com · kept encrypted on this phone</string>
@@ -231,7 +232,6 @@
     <string name="ui_queued_badge" translatable="false">Queued #%1$d</string>
     <string name="ui_up_next_in" translatable="false">Up next in %1$d</string>
     <string name="ui_play_now" translatable="false">Play now</string>
-    <string name="ui_cancel" translatable="false">Cancel</string>
     <string name="ui_queue_total" translatable="false">%1$s</string>
     <string name="captions_size_giant" translatable="false">Giant</string>
     <string name="captions_box" translatable="false">Background opacity</string>
