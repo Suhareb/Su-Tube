@@ -78,7 +78,6 @@
 
     <!-- ── Sign-in ────────────────────────────────────────────────────────── -->
     <!-- Accessibility label of the X that leaves the sign-in page. -->
-    <string name="ui_cancel">Cancel</string>
     <string name="ui_sign_in_title">Sign in to YouTube</string>
     <!-- Under the title of the sign-in page; keep "accounts.google.com" as it is. -->
     <string name="ui_sign_in_line">accounts.google.com · kept encrypted on this phone</string>
