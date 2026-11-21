@@ -735,7 +735,7 @@ fun QueuedBadge(videoId: String, modifier: Modifier = Modifier, small: Boolean =
     if (position <= 0) return
     val c = MaterialTheme.colorScheme
     Text(
-        stringResource(R.string.ui_queued_badge, position),
+        str(R.string.ui_queued_badge, position),
         color = c.onPrimary, fontWeight = FontWeight.ExtraBold, fontSize = if (small) 10.sp else 12.sp, maxLines = 1,
         modifier = modifier.clip(CircleShape).background(c.primary).padding(horizontal = if (small) 6.dp else 9.dp, vertical = if (small) 2.dp else 4.dp),
     )
