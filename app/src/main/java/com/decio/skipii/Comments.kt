@@ -856,8 +856,10 @@ private fun CommentRow(
                 displayAge(comment.ago)?.let { Text(it, color = c.onSurfaceVariant, fontSize = 12.sp, maxLines = 1) }
             }
             Spacer(Modifier.height(3.dp))
+            val seek = LocalSeek.current
+            val body = remember(comment.text, c.primary) { linkedComment(comment.text, c.primary, context, seek) }
             Text(
-                comment.text, fontSize = 14.sp, lineHeight = 20.sp,
+                body, fontSize = 14.sp, lineHeight = 20.sp,
                 maxLines = if (compact) 3 else Int.MAX_VALUE,
                 overflow = if (compact) TextOverflow.Ellipsis else TextOverflow.Clip,
             )
@@ -1127,5 +1129,60 @@ object CommentPrefs {
     fun chooseSearch(on: Boolean) {
         search = on
         prefs?.edit()?.putBoolean("comment_search", on)?.apply()
+    }
+}
+
+
+/** Jumps the video to a position (ms): what a timestamp in a comment does. Provided by the shell. */
+val LocalSeek = androidx.compose.runtime.staticCompositionLocalOf<(Long) -> Unit> { {} }
+
+private val TimestampPattern = Regex("""(?<![\w:])(\d{1,2}:)?\d{1,2}:\d{2}(?![\w:])""")
+private val WebAddressPattern = Regex("""https?://[^\s<>"')\]]+""")
+
+/** A comment's text with its timestamps (4:21, 1:02:03) and web addresses made tappable. */
+private fun linkedComment(text: String, tint: Color, context: android.content.Context, seek: (Long) -> Unit): AnnotatedString {
+    val style = androidx.compose.ui.text.TextLinkStyles(
+        androidx.compose.ui.text.SpanStyle(color = tint, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+    )
+    return androidx.compose.ui.text.buildAnnotatedString {
+        append(text)
+        val taken = ArrayList<IntRange>()
+        for (m in WebAddressPattern.findAll(text)) {
+            val start = m.range.first
+            var end = m.range.last + 1
+            while (end > start && text[end - 1] in ".,;:!?") end--
+            if (end <= start) continue
+            val url = text.substring(start, end)
+            taken += start until end
+            addLink(
+                androidx.compose.ui.text.LinkAnnotation.Clickable(
+                    url, style,
+                    androidx.compose.ui.text.LinkInteractionListener {
+                        try {
+                            context.startActivity(
+                                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        } catch (_: android.content.ActivityNotFoundException) {
+                        }
+                    },
+                ),
+                start, end,
+            )
+        }
+        for (m in TimestampPattern.findAll(text)) {
+            val start = m.range.first
+            val end = m.range.last + 1
+            if (taken.any { start in it }) continue
+            val parts = m.value.split(':').mapNotNull { it.toIntOrNull() }
+            val seconds = parts.fold(0L) { total, part -> total * 60 + part }
+            addLink(
+                androidx.compose.ui.text.LinkAnnotation.Clickable(
+                    "t-" + m.value, style,
+                    androidx.compose.ui.text.LinkInteractionListener { seek(seconds * 1000L) },
+                ),
+                start, end,
+            )
+        }
     }
 }

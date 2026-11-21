@@ -299,6 +299,8 @@ fun SkipiiApp() {
                 // Not for a window being rebuilt (fold / unfold): the video track would go off and back on.
                 androidx.lifecycle.Lifecycle.Event.ON_STOP -> if (!host.isChangingConfigurations) {
                     player.setBackground(true); shorts.setForeground(false); LiveControls.setOnScreen(false)
+                    // Background play off: the video stops with the app (audio only keeps playing either way).
+                    if (!BackgroundPlay.enabled && !AudioOnly.enabled) player.pausePlayback()
                 }
                 androidx.lifecycle.Lifecycle.Event.ON_START -> { player.setBackground(false); shorts.setForeground(true); LiveControls.setOnScreen(true) }
                 else -> Unit
@@ -554,6 +556,10 @@ fun SkipiiApp() {
             LocalVideoMenu provides { optionsFor = it },
             LocalChannelOpener provides { url -> showChannel(url) },
             LocalVideoOpener provides { video -> player.open(video) },
+            LocalSeek provides { ms -> player.seekTo(ms) },
+            LocalPlayAll provides { videos, shuffle -> player.playAll(videos, shuffle) },
+            LocalQueueAdd provides { video -> player.addToQueue(video) },
+            LocalQueuePosition provides { id -> player.queue.indexOfFirst { it.id == id } + 1 },
             LocalWindowLayout provides windowLayout,
         ) {
         Box(Modifier.padding(start = pagesStart)) {

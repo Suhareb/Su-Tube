@@ -1,5 +1,15 @@
 package com.decio.skipii
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -279,6 +289,62 @@ fun ChannelAvatar(url: String?, name: String, size: Int = 40) {
  * Full-width feed card: rounded thumbnail inside a 28 dp card, then avatar + title + meta.
  * The thumbnail sits 11 dp from the screen's edge (6 + 5), half the old 22 (Derek, 2026-10-31: wider thumbnails).
  */
+/** Adds a video to the queue (a swipe on its card). Provided by the shell. */
+val LocalQueueAdd = androidx.compose.runtime.staticCompositionLocalOf<(VideoItem) -> Unit> { {} }
+
+/** A video's place in the queue, 1 for the next one up; 0 when it isn't queued. Provided by the shell. */
+val LocalQueuePosition = androidx.compose.runtime.staticCompositionLocalOf<(String) -> Int> { { 0 } }
+
+/**
+ * Swipe the card right, about a third of the way across, to put its video in the queue. Only a real swipe
+ * counts: shorter ones spring back, and scrolling up or down never starts it.
+ */
+@Composable
+fun Modifier.swipeToQueue(video: VideoItem, enabled: Boolean = true): Modifier {
+    if (!enabled) return this
+    val add = LocalQueueAdd.current
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    val offset = remember(video.id) { Animatable(0f) }
+    var width by remember { mutableFloatStateOf(1f) }
+    val tint = MaterialTheme.colorScheme.primary
+    return this
+        .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
+        // What the card uncovers: a plus that fills in as the swipe nears the line.
+        .drawBehind {
+            val progress = (offset.value / (width / 3f)).coerceIn(0f, 1f)
+            if (progress > 0f) {
+                val cx = 36.dp.toPx()
+                val cy = size.height / 2f
+                val arm = 10.dp.toPx() * (0.5f + 0.5f * progress)
+                val stroke = 3.dp.toPx()
+                drawLine(tint.copy(alpha = progress), androidx.compose.ui.geometry.Offset(cx - arm, cy), androidx.compose.ui.geometry.Offset(cx + arm, cy), stroke)
+                drawLine(tint.copy(alpha = progress), androidx.compose.ui.geometry.Offset(cx, cy - arm), androidx.compose.ui.geometry.Offset(cx, cy + arm), stroke)
+            }
+        }
+        .graphicsLayer { translationX = offset.value }
+        .pointerInput(video.id) {
+            var crossed = false
+            detectHorizontalDragGestures(
+                onDragStart = { crossed = false },
+                onDragEnd = {
+                    scope.launch {
+                        if (offset.value >= width / 3f) { add(video); haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
+                        offset.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 500f))
+                    }
+                },
+                onDragCancel = { scope.launch { offset.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 500f)) } },
+                onHorizontalDrag = { change, amount ->
+                    change.consume()
+                    scope.launch { offset.snapTo((offset.value + amount).coerceIn(0f, width * 0.5f)) }
+                    val over = offset.value + amount >= width / 3f
+                    if (over && !crossed) { crossed = true; haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+                    if (!over) crossed = false
+                },
+            )
+        }
+}
+
 @Composable
 fun VideoCard(video: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val c = MaterialTheme.colorScheme
@@ -292,6 +358,7 @@ fun VideoCard(video: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifi
     val opener = remember { FocusRequester() }
     Column(
         modifier = modifier
+            .swipeToQueue(video, enabled = !tv)
             .padding(horizontal = 6.dp, vertical = 7.dp)
             .fillMaxWidth()
             .prefetchOnPress(video.id)
@@ -309,6 +376,7 @@ fun VideoCard(video: VideoItem, onClick: () -> Unit, modifier: Modifier = Modifi
             Thumbnail(video.thumbnail, Modifier.fillMaxWidth().aspectRatio(16f / 9f), radius = 23)
             DurationPill(video.durationSec, Modifier.align(Alignment.BottomEnd).padding(10.dp))
             ResumeBar(video.id, Modifier.align(Alignment.BottomStart), serverPercent = video.watchedPercent)
+            QueuedBadge(video.id, Modifier.align(Alignment.TopStart).padding(10.dp))
         }
         Row(modifier = Modifier.padding(start = 8.dp, end = 6.dp, top = 12.dp, bottom = 10.dp)) {
             val openChannel = LocalChannelOpener.current
@@ -368,11 +436,12 @@ private fun CardMeta(video: VideoItem) {
 
 /** Compact row used for "More videos" under the player. */
 @Composable
-fun VideoRow(video: VideoItem, onClick: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
+fun VideoRow(video: VideoItem, onClick: () -> Unit, queueSwipe: Boolean = true, trailing: (@Composable () -> Unit)? = null) {
     val c = MaterialTheme.colorScheme
     val menu = LocalVideoMenu.current
     Row(
         modifier = Modifier
+            .swipeToQueue(video, enabled = queueSwipe)
             .fillMaxWidth()
             .prefetchOnPress(video.id)
             .pressable(pressedScale = 0.97f, onLongClick = { menu(video) }, onClick = onClick)
@@ -382,6 +451,7 @@ fun VideoRow(video: VideoItem, onClick: () -> Unit, trailing: (@Composable () ->
         Box(Modifier.width(140.dp)) {
             Thumbnail(video.thumbnail, Modifier.fillMaxWidth().aspectRatio(16f / 9f), radius = 16)
             DurationPill(video.durationSec, Modifier.align(Alignment.BottomEnd).padding(6.dp), small = true)
+            if (queueSwipe) QueuedBadge(video.id, Modifier.align(Alignment.TopStart).padding(6.dp), small = true)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -655,4 +725,18 @@ private fun subpaths(icon: ImageVector): List<List<PathNode>> {
     }
     if (current.isNotEmpty()) out += current
     return out
+}
+
+
+/** "Queued #2" on a thumbnail whose video is in the queue: its place in line. */
+@Composable
+fun QueuedBadge(videoId: String, modifier: Modifier = Modifier, small: Boolean = false) {
+    val position = LocalQueuePosition.current(videoId)
+    if (position <= 0) return
+    val c = MaterialTheme.colorScheme
+    Text(
+        stringResource(R.string.ui_queued_badge, position),
+        color = c.onPrimary, fontWeight = FontWeight.ExtraBold, fontSize = if (small) 10.sp else 12.sp, maxLines = 1,
+        modifier = modifier.clip(CircleShape).background(c.primary).padding(horizontal = if (small) 6.dp else 9.dp, vertical = if (small) 2.dp else 4.dp),
+    )
 }

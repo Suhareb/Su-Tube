@@ -67,7 +67,9 @@ object CommentFeed {
         val chapters = parseChapters(watch)
         // No comments section at all: they're turned off for this video.
         val start = token ?: return@withContext CommentsPage(emptyList(), total = -1, disabled = true, next = null, chapters = chapters)
-        parsePage(InnerTube.postAny("next", JSONObject().put("continuation", start))).copy(chapters = chapters)
+        val json = InnerTube.postAny("next", JSONObject().put("continuation", start))
+        CommentPosting.absorb(json)
+        parsePage(json).copy(chapters = chapters)
     }
 
     /**
@@ -93,7 +95,9 @@ object CommentFeed {
 
     /** The next page of comments, or one thread's replies (same call, different token). */
     suspend fun more(token: String): CommentsPage = withContext(Dispatchers.IO) {
-        parsePage(InnerTube.postAny("next", JSONObject().put("continuation", token)))
+        val json = InnerTube.postAny("next", JSONObject().put("continuation", token))
+        CommentPosting.absorb(json)
+        parsePage(json)
     }
 
     internal fun parsePage(page: JSONObject): CommentsPage {

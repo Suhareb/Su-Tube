@@ -25,6 +25,8 @@ class SkipiiApplication : Application(), ImageLoaderFactory {
         HomeFeed.init(this)
         CommentPrefs.init(this)
         NavGlass.init(this)
+        WatchedFilter.init(this)
+        BackgroundPlay.init(this)
         QualityPreference.init(this)
         PlaybackSpeed.init(this)
         AudioOnly.init(this)
@@ -50,7 +52,7 @@ class SkipiiApplication : Application(), ImageLoaderFactory {
         // Objects that hold Compose state are first touched here, on the main thread and outside any composition.
         // Created for the first time inside one, a state can't be read from another snapshot afterwards (the
         // "created after the snapshot was taken" crash that BotCheck.waiting hit on opening the player).
-        listOf<Any?>(BotCheck.waiting, Inbox.unread, RecentWatched.version, WatchSync.status)
+        listOf<Any?>(BotCheck.waiting, Inbox.unread, RecentWatched.version, WatchSync.status, PlaylistContext.current)
         // Stream URLs are bound to the network they were fetched on: forget them on a switch.
         getSystemService(android.net.ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
             object : android.net.ConnectivityManager.NetworkCallback() {

@@ -152,6 +152,42 @@ class PlayerState(private val scope: CoroutineScope) {
     var queue by mutableStateOf<List<VideoItem>>(emptyList())
         private set
 
+    /** Videos that join the queue once the one being opened starts (Play all / Shuffle). */
+    private var pendingQueue: List<VideoItem> = emptyList()
+
+    /** Plays [videos] from the first (shuffled first when [shuffle]); the rest of them go in the queue. */
+    fun playAll(videos: List<VideoItem>, shuffle: Boolean) {
+        val list = videos.distinctBy { it.id }.let { if (shuffle) it.shuffled() else it }
+        val first = list.firstOrNull() ?: return
+        val rest = list.drop(1)
+        pendingQueue = emptyList()
+        clearQueue()
+        if (current?.id == first.id && error == null) {
+            expanded = true
+            addAll(rest)
+            return
+        }
+        open(first)
+        pendingQueue = rest
+    }
+
+    private fun addAll(items: List<VideoItem>) {
+        val player = controller ?: return
+        items.forEach { known[it.id] = it; player.addMediaItem(mediaItemFor(it)) }
+    }
+
+    /** Pauses (leaving the app with background play switched off). */
+    fun pausePlayback() { controller?.pause() }
+
+    /** Takes [video] out of [playlist] on the account; [onDone] runs once it has gone. */
+    fun removeFromPlaylist(playlist: PlaylistRef, video: VideoItem, onDone: () -> Unit) {
+        scope.launch {
+            runCatching { InnerTube.setInPlaylist(playlist.id, video.id, false) }
+                .onSuccess { onDone(); actionMessage = str(R.string.ui_removed_from, playlist.title) }
+                .onFailure { actionMessage = it.message ?: str(R.string.player_error_no_stream) }
+        }
+    }
+
     fun open(item: VideoItem, expand: Boolean = true) {
         if (expand) expanded = true
         if (current?.id == item.id && error == null) return
@@ -240,6 +276,11 @@ class PlayerState(private val scope: CoroutineScope) {
         // Pick up where this video was left off (ResumeStore; written by the service).
         replaceCurrent(player, item, positionMs = ResumeStore.startPosition(item.id))
         player.play()
+        if (pendingQueue.isNotEmpty()) {
+            val rest = pendingQueue
+            pendingQueue = emptyList()
+            addAll(rest)
+        }
     }
 
     /**
@@ -309,6 +350,20 @@ class PlayerState(private val scope: CoroutineScope) {
         if (player.playbackState == Player.STATE_IDLE) player.prepare()
         player.play()
     }
+
+    /** Moves the queued video at [from] to [to] (both counted in [queue]). */
+    fun moveInQueue(from: Int, to: Int) {
+        val player = controller ?: return
+        val base = player.currentMediaItemIndex + 1
+        if (from == to || from !in queue.indices || to !in queue.indices) return
+        player.moveMediaItem(base + from, base + to)
+    }
+
+    /** The video whose end should stop playback rather than roll into the queue (Up next's Cancel). */
+    private var stopAfter: String? = null
+    private var lastItemId: String? = null
+
+    fun cancelUpNext() { stopAfter = current?.id }
 
     fun removeFromQueue(index: Int) {
         val player = controller ?: return
@@ -794,6 +849,13 @@ class PlayerState(private val scope: CoroutineScope) {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val previous = lastItemId
+            lastItemId = mediaItem?.mediaId
+            // Up next was cancelled for the video that just ended: the next one waits, paused.
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && stopAfter != null && stopAfter == previous) {
+                stopAfter = null
+                controller?.pause()
+            }
             if (mediaItem != null) onPlayerMovedTo(mediaItem)
         }
 

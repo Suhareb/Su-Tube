@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.automirrored.rounded.Undo
@@ -1010,12 +1011,17 @@ private fun entries(): List<Entry> = buildList {
     add(Entry(pb, "swipe_brightness", str(R.string.settings_swipe_brightness_title), listOf(str(R.string.settings_swipe_brightness_line), str(R.string.settings_swipe_words))))
     add(Entry(pb, "swipe_volume", str(R.string.settings_swipe_volume_title), listOf(str(R.string.settings_swipe_volume_line), str(R.string.settings_swipe_words))))
     add(Entry(pb, "audio", str(R.string.bar_audio_only), listOf(str(R.string.settings_audio_only_line))))
+    add(Entry(pb, "background_play", str(R.string.settings_background_play_title), listOf(str(R.string.settings_background_play_line), "background", "screen off", "pause")))
     add(Entry(pb, "comment_copy", str(R.string.settings_comment_copy_title), listOf(str(R.string.settings_comment_copy_line), "copy", "clipboard", "comments")))
     add(Entry(pb, "comment_search", str(R.string.settings_comment_search_title), listOf(str(R.string.settings_comment_search_line), "search", "comments")))
     add(Entry(pb, "live", str(R.string.settings_live_title), listOf(str(R.string.settings_live_line), str(R.string.settings_live_words))))
     val cc = SettingsPage.Captions
     add(Entry(cc, "show", str(R.string.captions_show), listOf(str(R.string.captions_show_never), str(R.string.captions_show_always))))
     add(Entry(cc, "look", str(R.string.captions_look), CaptionSettings.Look.entries.map { str(it.labelRes) }))
+    add(Entry(cc, "box", str(R.string.captions_box), listOf("opacity", "background")))
+    add(Entry(cc, "edge", str(R.string.captions_edge), listOf("outline", "shadow")))
+    add(Entry(cc, "words", str(R.string.captions_word_by_word), listOf(str(R.string.captions_word_by_word_line), "word")))
+    add(Entry(cc, "second", str(R.string.captions_second), listOf(str(R.string.captions_second_line), "dual", "language", "two")))
     add(Entry(cc, "size", str(R.string.captions_size), CaptionSettings.sizes.map { str(it.second) }))
     add(Entry(cc, "kept", str(R.string.captions_kept_languages), emptyList()))
     val sb = SettingsPage.SponsorBlock
@@ -1027,6 +1033,8 @@ private fun entries(): List<Entry> = buildList {
     add(Entry(ap, "amoled", str(R.string.settings_amoled_title), listOf(str(R.string.settings_amoled_line), "AMOLED", "OLED")))
     add(Entry(ap, "font", str(R.string.ui_font_title), listOf(str(R.string.ui_font_line), "ttf", "otf", "typeface")))
     add(Entry(ap, "nav_glass", str(R.string.ui_nav_glass_title), listOf(str(R.string.ui_nav_glass_line), "liquid", "glass", "blur", "navigation")))
+    add(Entry(ap, "hide_mostly_watched", str(R.string.ui_hide_mostly_title), listOf(str(R.string.ui_hide_mostly_line), "watched", "hide", "feed")))
+    add(Entry(ap, "hide_all_watched", str(R.string.ui_hide_all_title), listOf(str(R.string.ui_hide_all_line), "watched", "hide", "feed")))
     add(Entry(ap, "home_fresh", str(R.string.ui_home_fresh_title), listOf(str(R.string.ui_home_fresh_line), "home", "feed", "algorithm", "recommendations")))
     add(Entry(ap, "theme", str(R.string.settings_theme), listOf(str(R.string.ui_theme_wallpaper)) + SKIPII_THEMES.map { it.name }))
     add(Entry(SettingsPage.Language, "lang", str(R.string.language_title), AppLanguage.choices.map { it.name } + str(R.string.language_phone)))
@@ -1389,6 +1397,17 @@ private fun PlaybackPage(player: PlayerState) {
             ) { FullscreenSwipes.turnVolume(it) }
         }
     }
+    // Background play: off, and the video pauses when the app is left or the screen turns off.
+    Spacer(Modifier.height(14.dp))
+    Joined(1) { _, shape ->
+        SwitchSetting(
+            "background_play", shape,
+            stringResource(R.string.settings_background_play_title),
+            stringResource(R.string.settings_background_play_line),
+            BackgroundPlay.enabled,
+            icon = Icons.Rounded.PlayArrow,
+        ) { BackgroundPlay.choose(it) }
+    }
     // Comments: copying with a long press, and the search button in the comments sheet.
     Spacer(Modifier.height(14.dp))
     Joined(2) { i, shape ->
@@ -1476,7 +1495,7 @@ private fun LiveActivitySetting(player: PlayerState) {
 private fun CaptionsPage() {
     val c = MaterialTheme.colorScheme
     val kept = CaptionTranslator.downloaded.filter { it != "en" }.sortedBy { CaptionNames.language(it) }
-    val rows = if (kept.isEmpty()) 4 else 5
+    val rows = if (kept.isEmpty()) 8 else 9
     Spacer(Modifier.height(14.dp))
     Joined(rows) { i, shape ->
         when (i) {
@@ -1496,6 +1515,26 @@ private fun CaptionsPage() {
                 CaptionSettings.sizes.map { it.first to stringResource(it.second) },
                 CaptionSettings.size,
             ) { CaptionSettings.chooseSize(it) }
+            4 -> ChipsSetting(
+                "box", shape, stringResource(R.string.captions_box), null,
+                listOf(-1f to "Preset", 0f to "None", 0.25f to "25%", 0.5f to "50%", 0.75f to "75%", 1f to "Solid"),
+                CaptionSettings.boxOpacity,
+            ) { CaptionSettings.chooseBox(it) }
+            5 -> ChipsSetting(
+                "edge", shape, stringResource(R.string.captions_edge), null,
+                CaptionSettings.Edge.entries.map { it to it.label },
+                CaptionSettings.edge,
+            ) { CaptionSettings.chooseEdge(it) }
+            6 -> SwitchSetting(
+                "words", shape, stringResource(R.string.captions_word_by_word), stringResource(R.string.captions_word_by_word_line),
+                CaptionSettings.wordByWord, icon = Icons.Rounded.ClosedCaption,
+            ) { CaptionSettings.chooseWordByWord(it) }
+            7 -> ChipsSetting(
+                "second", shape, stringResource(R.string.captions_second), stringResource(R.string.captions_second_line),
+                listOf<Pair<String?, String>>(null to "Off") + listOf("en", "es", "fr", "de", "pt", "it", "ru", "ar", "hi", "id", "tr", "ja", "ko", "zh")
+                    .map { it to CaptionNames.language(it) },
+                CaptionSettings.second,
+            ) { CaptionSettings.chooseSecond(it) }
             else -> SettingBox("kept", shape) {
                 Text(stringResource(R.string.captions_kept_languages), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(12.dp))
@@ -1661,6 +1700,17 @@ private fun AppearancePage() {
             "nav_glass", shape, stringResource(R.string.ui_nav_glass_title), stringResource(R.string.ui_nav_glass_line),
             NavGlass.enabled, icon = Icons.Rounded.Contrast,
         ) { NavGlass.choose(it) }
+    }
+    Spacer(Modifier.height(14.dp))
+    Joined(2) { i, shape ->
+        if (i == 0) SwitchSetting(
+            "hide_mostly_watched", shape, stringResource(R.string.ui_hide_mostly_title), stringResource(R.string.ui_hide_mostly_line),
+            WatchedFilter.hideMostlyWatched, icon = Icons.Rounded.Refresh,
+        ) { WatchedFilter.chooseMostly(it) }
+        else SwitchSetting(
+            "hide_all_watched", shape, stringResource(R.string.ui_hide_all_title), stringResource(R.string.ui_hide_all_line),
+            WatchedFilter.hideAllWatched, icon = Icons.Rounded.Refresh,
+        ) { WatchedFilter.chooseAll(it) }
     }
     Spacer(Modifier.height(14.dp))
     Joined(1) { _, shape ->

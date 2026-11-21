@@ -65,6 +65,8 @@ object RecentWatched {
         version++
     }
 
+    fun has(id: String) = items.any { it.first.id == id }
+
     /** [server] with the lately opened videos YouTube hasn't listed yet put in front. */
     fun mergeInto(server: List<VideoItem>): List<VideoItem> {
         val cutoff = System.currentTimeMillis() - 12L * 60 * 60 * 1000
@@ -72,6 +74,72 @@ object RecentWatched {
         val local = items.filter { it.second > cutoff && it.first.id !in listed }.map { it.first }
         return local + server
     }
+}
+
+/**
+ * Videos already watched, hidden from Home and Subscriptions. The first switch (on to begin with) hides the ones
+ * watched past 80%; the second hides everything with any watching on it. Progress is what this phone knows,
+ * else what YouTube reports for the account.
+ */
+object WatchedFilter {
+    private var prefs: android.content.SharedPreferences? = null
+    var hideMostlyWatched by mutableStateOf(true)
+        private set
+    var hideAllWatched by mutableStateOf(false)
+        private set
+
+    fun init(context: android.content.Context) {
+        val p = context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE).also { prefs = it }
+        hideMostlyWatched = p.getBoolean("hide_mostly_watched", true)
+        hideAllWatched = p.getBoolean("hide_all_watched", false)
+    }
+
+    fun chooseMostly(on: Boolean) {
+        hideMostlyWatched = on
+        prefs?.edit()?.putBoolean("hide_mostly_watched", on)?.apply()
+    }
+
+    fun chooseAll(on: Boolean) {
+        hideAllWatched = on
+        prefs?.edit()?.putBoolean("hide_all_watched", on)?.apply()
+    }
+
+    /** How much of [video] has been watched, 0..1, or null when nothing is known. */
+    fun fraction(video: VideoItem): Float? =
+        ResumeStore.progress(video.id) ?: video.watchedPercent?.takeIf { it > 0 }?.let { (it / 100f).coerceIn(0f, 1f) }
+
+    fun hides(video: VideoItem): Boolean {
+        if (!hideMostlyWatched && !hideAllWatched) return false
+        val fraction = fraction(video)
+        return if (hideAllWatched) fraction != null || RecentWatched.has(video.id) else fraction != null && fraction > 0.8f
+    }
+}
+
+/** Whether the video keeps playing once the app is left or the screen goes off (audio only always does). */
+object BackgroundPlay {
+    private var prefs: android.content.SharedPreferences? = null
+    var enabled by mutableStateOf(true)
+        private set
+
+    fun init(context: android.content.Context) {
+        val p = context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE).also { prefs = it }
+        enabled = p.getBoolean("background_play", true)
+    }
+
+    fun choose(on: Boolean) {
+        enabled = on
+        prefs?.edit()?.putBoolean("background_play", on)?.apply()
+    }
+}
+
+/** The playlist page that is open, so a video's options can offer "Remove from …" for it. */
+class PlaylistRemoval(val playlist: PlaylistRef, val feed: FeedState) {
+    /** Watch later and the account's own playlists; Liked videos is removed by unliking. */
+    val canRemove get() = playlist.id == "WL" || playlist.id.startsWith("PL")
+}
+
+object PlaylistContext {
+    var current by mutableStateOf<PlaylistRemoval?>(null)
 }
 
 /**
@@ -140,6 +208,9 @@ class FeedState(
     val loadedEmpty get() = loaded && !loading && error == null && videos.isEmpty()
 
     fun ensureLoaded() { if (!loaded && !loading) refresh() }
+
+    /** Takes [id] out of the list showing (it was removed from the playlist this list is). */
+    fun removeVideo(id: String) { videos = videos.filter { it.id != id } }
 
     /** The first page shown landed more than [ms] ago (false while nothing has). */
     fun olderThan(ms: Long) = landedAt != 0L && android.os.SystemClock.elapsedRealtime() - landedAt > ms

@@ -197,7 +197,7 @@
     <string name="shorts_views" translatable="false">%1$s views</string>
     <string name="ui_hello" translatable="false">Hello, %1$s</string>
     <string name="ui_view_channel" translatable="false">View channel</string>
-    <string name="ui_filter_no_match" translatable="false">Nothing saved here matches those filters.</string>
+    <string name="ui_filter_no_match" translatable="false">Nothing here matches your filters.</string>
     <string name="comments_copied" translatable="false">Comment copied</string>
     <string name="comments_nested_show" translatable="false">Show %1$d replies</string>
     <string name="comments_nested_hide" translatable="false">Hide replies</string>
@@ -216,4 +216,29 @@
     <string name="ui_nav_glass_title" translatable="false">Glass navigation bar</string>
     <string name="ui_nav_glass_line" translatable="false">A see-through bar with a light sheen and edge. Hold a tab and slide to switch tabs, with or without it.</string>
     <string name="comments_more_replies" translatable="false">More replies</string>
+    <string name="ui_hide_mostly_title" translatable="false">Hide videos watched past 80%</string>
+    <string name="ui_hide_mostly_line" translatable="false">Videos you have almost finished stay out of Home and Subscriptions</string>
+    <string name="ui_hide_all_title" translatable="false">Hide all watched videos</string>
+    <string name="ui_hide_all_line" translatable="false">Any video you have started stays out of Home and Subscriptions</string>
+    <string name="ui_continue_watching" translatable="false">Continue watching</string>
+    <string name="ui_play_all" translatable="false">Play all</string>
+    <string name="ui_shuffle" translatable="false">Shuffle</string>
+    <string name="ui_remove_from" translatable="false">Remove from %1$s</string>
+    <string name="ui_removed_from" translatable="false">Removed from %1$s</string>
+    <string name="settings_background_play_title" translatable="false">Background play</string>
+    <string name="settings_background_play_line" translatable="false">Off: the video pauses when you leave Su Tube or the screen turns off. Audio only keeps playing</string>
+    <string name="video_lock_screen" translatable="false">Lock screen</string>
+    <string name="video_hold_to_unlock" translatable="false">Hold to unlock</string>
+    <string name="ui_queued_badge" translatable="false">Queued #%1$d</string>
+    <string name="ui_up_next_in" translatable="false">Up next in %1$d</string>
+    <string name="ui_play_now" translatable="false">Play now</string>
+    <string name="ui_cancel" translatable="false">Cancel</string>
+    <string name="ui_queue_total" translatable="false">%1$s</string>
+    <string name="captions_size_giant" translatable="false">Giant</string>
+    <string name="captions_box" translatable="false">Background opacity</string>
+    <string name="captions_edge" translatable="false">Letter edge</string>
+    <string name="captions_word_by_word" translatable="false">Word by word</string>
+    <string name="captions_word_by_word_line" translatable="false">Auto-generated captions appear as each word is said</string>
+    <string name="captions_second" translatable="false">Second language</string>
+    <string name="captions_second_line" translatable="false">Shown under the first, translated on the phone if the video doesn\'t have it</string>
 </resources>

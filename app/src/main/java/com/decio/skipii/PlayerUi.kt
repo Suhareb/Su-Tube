@@ -41,6 +41,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material.icons.rounded.Close
@@ -248,14 +250,34 @@ fun PlayerScreen(
             item(key = "info") {
                     Column(Modifier.padding(horizontal = 20.dp)) {
                         Spacer(Modifier.height(18.dp))
-                        Text(
-                            item.title,
-                            fontFamily = RoundedHeavy,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 22.sp,
-                            lineHeight = 26.sp,
-                            letterSpacing = (-0.6).sp,
-                        )
+                        // A title past three lines folds to one with an arrow: tap it for the whole title and the description.
+                        var titleLong by remember(item.id) { mutableStateOf(false) }
+                        var titleOpen by remember(item.id) { mutableStateOf(false) }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .then(if (titleLong) Modifier.pressable(pressedScale = 0.99f) { titleOpen = !titleOpen; descriptionOpen = titleOpen } else Modifier),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Text(
+                                item.title,
+                                modifier = Modifier.weight(1f),
+                                fontFamily = RoundedHeavy,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 22.sp,
+                                lineHeight = 26.sp,
+                                letterSpacing = (-0.6).sp,
+                                maxLines = if (titleLong && !titleOpen) 1 else Int.MAX_VALUE,
+                                overflow = TextOverflow.Ellipsis,
+                                onTextLayout = { if (!titleLong && it.lineCount > 3) titleLong = true },
+                            )
+                            if (titleLong) {
+                                Icon(
+                                    if (titleOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null,
+                                    modifier = Modifier.padding(start = 6.dp, top = 2.dp).size(26.dp),
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(6.dp))
                         val stats = listOfNotNull(
                             item.views.takeIf { it >= 0 }?.let { viewsLine(it) },

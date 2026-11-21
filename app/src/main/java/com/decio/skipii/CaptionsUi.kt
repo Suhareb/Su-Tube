@@ -118,15 +118,26 @@ fun CaptionLayer(state: PlayerState, bottom: Dp, modifier: Modifier = Modifier, 
     val cues = cap.cues
     val pages = remember(cues, choice) { cues?.takeIf { choice.track.auto }?.let(::captionPages) }
     var lines by remember(cues) { mutableStateOf(emptyList<CaptionLine>()) }
-    if (cues != null) LaunchedEffect(cues, pages) {
+    var lines2 by remember(cap.cues2) { mutableStateOf(emptyList<CaptionLine>()) }
+    // The second language follows the setting and what is showing.
+    LaunchedEffect(CaptionSettings.second, choice, cap.on, cap.tracks) { cap.reloadSecond() }
+    val byWord = CaptionSettings.wordByWord && choice.track.auto && choice.translateTo == null
+    if (cues != null) LaunchedEffect(cues, pages, byWord, cap.cues2) {
         var frame = 0
         while (true) {
             withFrameMillis { }
             // Paused, the position only moves on seeks: a few checks a second are plenty.
             if (!state.isPlaying && frame++ % 6 != 0) continue
             val t = if (state.isPlaying) state.controller?.currentPosition ?: state.positionMs else state.positionMs
-            val now = if (pages != null) captionPageAt(pages, t) else captionLinesAt(cues, t)
+            val now = when {
+                byWord -> captionWordsAt(cues, t)
+                pages != null -> captionPageAt(pages, t)
+                else -> captionLinesAt(cues, t)
+            }
             if (now != lines) lines = now
+            val second = cap.cues2
+            val now2 = if (second != null) captionLinesAt(second, t) else emptyList()
+            if (now2 != lines2) lines2 = now2
         }
     }
     val look = rememberCaptionLook()
@@ -141,6 +152,10 @@ fun CaptionLayer(state: PlayerState, bottom: Dp, modifier: Modifier = Modifier, 
             if (cues == null) CaptionStatus(cap, choice, px)
             else if (lines.isNotEmpty()) {
                 Box(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth * 0.92f)) { CaptionText(lines, look, px) }
+            }
+            // The second language, a little smaller, under the first.
+            if (cues != null && lines2.isNotEmpty()) {
+                Box(Modifier.widthIn(max = this@BoxWithConstraints.maxWidth * 0.92f)) { CaptionText(lines2, look, px * 0.85f) }
             }
         }
     }
@@ -183,6 +198,25 @@ private class CaptionLook(
 
 @Composable
 private fun rememberCaptionLook(): CaptionLook {
+    val base = presetCaptionLook()
+    val opacity = CaptionSettings.boxOpacity
+    val edge = CaptionSettings.edge
+    if (opacity < 0f && edge == CaptionSettings.Edge.Preset) return base
+    // The look's own box tone (black where it has none), at the opacity picked; the edge as picked.
+    val tone = if (base.box.alpha == 0f) Color.Black else base.box
+    return CaptionLook(
+        ink = base.ink,
+        box = if (opacity >= 0f) tone.copy(alpha = opacity) else base.box,
+        corner = base.corner, pad = if (opacity > 0f && base.pad < 0.25f) 0.25f else base.pad,
+        weight = base.weight, family = base.family,
+        outline = when (edge) { CaptionSettings.Edge.Preset -> base.outline; CaptionSettings.Edge.Outline -> Color.Black; else -> null },
+        shadow = when (edge) { CaptionSettings.Edge.Preset -> base.shadow; CaptionSettings.Edge.Shadow -> Shadow(Color.Black, Offset(3f, 3f), 4f); else -> null },
+        scale = base.scale,
+    )
+}
+
+@Composable
+private fun presetCaptionLook(): CaptionLook {
     val context = LocalContext.current
     return when (CaptionSettings.look) {
         CaptionSettings.Look.Skipii -> CaptionLook(Color.White, Color(0xFF120F1A).copy(alpha = 0.74f), 0.42f, 0.42f, FontWeight.Bold, null)

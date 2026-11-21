@@ -1,5 +1,15 @@
 package com.decio.skipii
 
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
@@ -130,6 +140,14 @@ fun VideoOptionsSheet(video: VideoItem, player: PlayerState, onDismiss: () -> Un
         if (Account.signedIn) {
             OptionRow(Icons.Rounded.WatchLater, stringResource(R.string.ui_save_to_watch_later)) { player.saveToWatchLater(video); onDismiss() }
             OptionRow(Icons.Rounded.LibraryAdd, stringResource(R.string.ui_save_to_playlist)) { onDismiss(); player.openPlaylists(video) }
+        }
+        // On a Watch later or own-playlist page, a video in it can be taken out.
+        val open = PlaylistContext.current
+        if (open != null && open.canRemove && Account.signedIn && open.feed.videos.any { it.id == video.id }) {
+            OptionRow(Icons.Rounded.RemoveCircleOutline, stringResource(R.string.ui_remove_from, open.playlist.title)) {
+                player.removeFromPlaylist(open.playlist, video) { open.feed.removeVideo(video.id) }
+                onDismiss()
+            }
         }
         OptionRow(Icons.Rounded.Share, stringResource(R.string.ui_share)) {
             shareLink(context, "https://youtu.be/${video.id}", video.title)
@@ -459,9 +477,27 @@ fun QueueSheet(player: PlayerState, onDismiss: () -> Unit) {
         if (leavingRows == null) emptied.animateTo(if (player.queue.isEmpty()) 1f else 0f, QueueCloseSpec)
     }
     val clearAlpha by animateFloatAsState(if (leavingRows == null && player.queue.isNotEmpty()) 1f else 0f, label = "clearAlpha")
+    // Rearranging: the row held (by its key) and how far it has been dragged, in px.
+    var dragKey by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val haptic = LocalHapticFeedback.current
+    // Stable keys, so a row keeps its identity (and its finger) as it moves; a video queued twice gets a count.
+    val rowKeys = remember(rows) {
+        val seen = HashMap<String, Int>()
+        rows.map { v -> val n = seen[v.id] ?: 0; seen[v.id] = n + 1; "${v.id}#$n" }
+    }
+    val totalSeconds = rows.sumOf { it.durationSec.coerceAtLeast(0L) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.surfaceContainerLow) {
         Row(Modifier.padding(horizontal = 20.dp).padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.ui_queue), fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 21.sp, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.ui_queue), fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 21.sp)
+                if (rows.isNotEmpty()) {
+                    Text(
+                        plural(R.plurals.ui_queue_count, rows.size.toLong(), rows.size) + " · " + queueDuration(totalSeconds),
+                        color = c.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
             Text(
                 stringResource(R.string.ui_clear), color = c.primary, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp,
                 modifier = Modifier
@@ -485,12 +521,77 @@ fun QueueSheet(player: PlayerState, onDismiss: () -> Unit) {
         Layout(
             content = {
                 LazyColumn(Modifier.fillMaxHeight(0.7f), state = listState) {
-                    itemsIndexed(rows, key = { i, v -> "$i-${v.id}" }) { index, video ->
+                    itemsIndexed(rows, key = { i, _ -> rowKeys.getOrElse(i) { "row-$i" } }) { index, video ->
+                        val rowKey = rowKeys.getOrElse(index) { "row-$index" }
+                        val indexNow by rememberUpdatedState(index)
+                        val rowsNow by rememberUpdatedState(rows)
+                        val holding = dragKey == rowKey
+                        val swipe = remember(rowKey) { Animatable(0f) }
+                        var rowWidth by remember { mutableFloatStateOf(1f) }
+                        fun start() { dragKey = rowKey; dragOffset = 0f; haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
+                        fun end() { dragKey = null; dragOffset = 0f }
+                        /** Follows the finger; past half a row's height the video swaps places with its neighbour. */
+                        fun dragBy(dy: Float) {
+                            dragOffset += dy
+                            val size = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == rowKey }?.size?.toFloat() ?: return
+                            val i = indexNow
+                            if (dragOffset > size / 2f && i < rowsNow.lastIndex) { player.moveInQueue(i, i + 1); dragOffset -= size }
+                            else if (dragOffset < -size / 2f && i > 0) { player.moveInQueue(i, i - 1); dragOffset += size }
+                        }
                         // Top to bottom, one after another, counted from the first row on screen.
                         val order = (index - listState.firstVisibleItemIndex).coerceAtLeast(0)
                         SlideAway(slide = { Motion.Exit.transform(((sweep.value - SlideAwayStaggerMs * order) / SlideAwayMs).coerceIn(0f, 1f)) }) {
-                            Box(Modifier.padding(horizontal = 20.dp)) {
-                                VideoRow(video, onClick = { player.playFromQueue(index); onDismiss() }) {
+                            Box(
+                                Modifier
+                                    .zIndex(if (holding) 1f else 0f)
+                                    .onSizeChanged { rowWidth = it.width.toFloat().coerceAtLeast(1f) }
+                                    .graphicsLayer {
+                                        translationY = if (holding) dragOffset else 0f
+                                        translationX = swipe.value
+                                        shadowElevation = if (holding) 12.dp.toPx() else 0f
+                                    }
+                                    // Press and hold anywhere on a row, then move it.
+                                    .pointerInput(rowKey) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = { start() },
+                                            onDrag = { change, amount -> change.consume(); dragBy(amount.y) },
+                                            onDragEnd = { end() },
+                                            onDragCancel = { end() },
+                                        )
+                                    }
+                                    // Swipe left to take it out.
+                                    .pointerInput(rowKey) {
+                                        detectHorizontalDragGestures(
+                                            onDragEnd = {
+                                                scope.launch {
+                                                    if (swipe.value <= -rowWidth / 3f) player.removeFromQueue(indexNow)
+                                                    else swipe.animateTo(0f)
+                                                }
+                                            },
+                                            onDragCancel = { scope.launch { swipe.animateTo(0f) } },
+                                            onHorizontalDrag = { change, amount ->
+                                                change.consume()
+                                                scope.launch { swipe.snapTo((swipe.value + amount).coerceIn(-rowWidth * 0.6f, 0f)) }
+                                            },
+                                        )
+                                    }
+                                    .padding(horizontal = 20.dp),
+                            ) {
+                                VideoRow(video, queueSwipe = false, onClick = { player.playFromQueue(index); onDismiss() }) {
+                                    // The handle: drag a video by it right away.
+                                    Box(
+                                        Modifier.size(40.dp).pointerInput(rowKey) {
+                                            detectDragGestures(
+                                                onDragStart = { start() },
+                                                onDrag = { change, amount -> change.consume(); dragBy(amount.y) },
+                                                onDragEnd = { end() },
+                                                onDragCancel = { end() },
+                                            )
+                                        },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(Icons.Rounded.DragHandle, null, tint = c.onSurfaceVariant)
+                                    }
                                     Box(Modifier.size(40.dp).pressable { player.removeFromQueue(index) }, contentAlignment = Alignment.Center) {
                                         Icon(Icons.Rounded.Close, stringResource(R.string.ui_remove_from_queue), tint = c.onSurfaceVariant)
                                     }
@@ -537,4 +638,11 @@ private fun SlideAway(slide: () -> Float, size: () -> Float = { 1f }, content: @
             placeable.placeRelativeWithLayer(0, 0) { translationX = slide() * (placeable.width + 24.dp.toPx()) }
         }
     }
+}
+
+
+/** "1 h 5 min" / "12 min": how long a queue runs. */
+private fun queueDuration(seconds: Long): String {
+    val minutes = (seconds / 60).coerceAtLeast(if (seconds > 0) 1 else 0)
+    return if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
 }

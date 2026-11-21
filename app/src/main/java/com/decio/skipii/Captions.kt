@@ -112,6 +112,18 @@ fun captionPages(cues: List<CaptionCue>): List<CaptionPage> {
     }
 }
 
+/** An auto-generated line as it is said: only the words spoken by [t] (the whole line when it has no word times). */
+fun captionWordsAt(cues: List<CaptionCue>, t: Long): List<CaptionLine> {
+    val i = cueIndexAt(cues, t)
+    if (i < 0) return emptyList()
+    val cue = cues[i]
+    if (t >= cue.endMs) return emptyList()
+    val words = cue.words ?: return listOf(CaptionLine(cue.text, cue.sound))
+    val said = words.filter { cue.startMs + it.offsetMs <= t }
+    if (said.isEmpty()) return emptyList()
+    return listOf(CaptionLine(said.joinToString("") { it.text }.trim(), cue.sound))
+}
+
 /** The page's lines showing at [t], or none between pages. */
 fun captionPageAt(pages: List<CaptionPage>, t: Long): List<CaptionLine> {
     var lo = 0
@@ -214,13 +226,32 @@ object CaptionSettings {
     val sizes = listOf(
         0.85f to R.string.captions_size_small, 1f to R.string.captions_size_medium,
         1.22f to R.string.captions_size_large, 1.5f to R.string.captions_size_huge,
+        1.9f to R.string.captions_size_giant,
     )
+    /** The edge around the letters: the look's own, or one of these over it. */
+    enum class Edge(val label: String) { Preset("Preset"), None("None"), Outline("Outline"), Shadow("Shadow") }
 
     private const val KEY_SHOW = "show"
     private const val KEY_LOOK = "look"
     private const val KEY_SIZE = "size"
     private const val KEY_LANGUAGE = "language"
+    private const val KEY_BOX = "box"
+    private const val KEY_EDGE = "edge"
+    private const val KEY_WORDS = "words"
+    private const val KEY_SECOND = "second"
     private var prefs: SharedPreferences? = null
+
+    /** The box behind the letters: its opacity 0..1, or below 0 for the look's own. */
+    var boxOpacity by mutableFloatStateOf(-1f)
+        private set
+    var edge by mutableStateOf(Edge.Preset)
+        private set
+    /** Auto-generated captions appear as each word is said, instead of two lines at a time. */
+    var wordByWord by mutableStateOf(false)
+        private set
+    /** A second language shown under the first (the language code), or null for one. */
+    var second by mutableStateOf<String?>(null)
+        private set
 
     var show by mutableStateOf(Show.Foreign)
         private set
@@ -242,7 +273,16 @@ object CaptionSettings {
         look = prefs?.getString(KEY_LOOK, null)?.let { s -> Look.entries.firstOrNull { it.name == s } } ?: Look.Skipii
         size = prefs?.getFloat(KEY_SIZE, 1f) ?: 1f
         pickedLanguage = prefs?.getString(KEY_LANGUAGE, null)
+        boxOpacity = prefs?.getFloat(KEY_BOX, -1f) ?: -1f
+        edge = prefs?.getString(KEY_EDGE, null)?.let { s -> Edge.entries.firstOrNull { it.name == s } } ?: Edge.Preset
+        wordByWord = prefs?.getBoolean(KEY_WORDS, false) ?: false
+        second = prefs?.getString(KEY_SECOND, null)
     }
+
+    fun chooseBox(value: Float) { boxOpacity = value; prefs?.edit()?.putFloat(KEY_BOX, value)?.apply() }
+    fun chooseEdge(value: Edge) { edge = value; prefs?.edit()?.putString(KEY_EDGE, value.name)?.apply() }
+    fun chooseWordByWord(value: Boolean) { wordByWord = value; prefs?.edit()?.putBoolean(KEY_WORDS, value)?.apply() }
+    fun chooseSecond(value: String?) { second = value; prefs?.edit()?.apply { if (value == null) remove(KEY_SECOND) else putString(KEY_SECOND, value) }?.apply() }
 
     fun chooseShow(value: Show) { show = value; prefs?.edit()?.putString(KEY_SHOW, value.name)?.apply() }
     fun chooseLook(value: Look) { look = value; prefs?.edit()?.putString(KEY_LOOK, value.name)?.apply() }
@@ -370,6 +410,11 @@ class CaptionsState(private val scope: CoroutineScope, private val positionMs: (
     private var transcriptOpen = false
     private var job: Job? = null
     private var loadedFor: CaptionChoice? = null
+    /** The second language's lines ([CaptionSettings.second]); null until loaded, or when there isn't one. */
+    var cues2 by mutableStateOf<List<CaptionCue>?>(null)
+        private set
+    private var job2: Job? = null
+    private var loadedFor2: CaptionChoice? = null
 
     /** The language spoken: what the auto-generated track is in. Unknown without one. */
     val videoLanguage: String? get() = tracks.firstOrNull { it.auto }?.base
@@ -391,6 +436,48 @@ class CaptionsState(private val scope: CoroutineScope, private val positionMs: (
         loading = false
         error = null
         loadedFor = null
+        job2?.cancel()
+        job2 = null
+        cues2 = null
+        loadedFor2 = null
+    }
+
+    /** The second language as a choice: a track or a translation, other than the first. */
+    private fun secondChoice(): CaptionChoice? {
+        val language = CaptionSettings.second ?: return null
+        val picked = bestFor(language) ?: translationInto(language) ?: return null
+        return picked.takeIf { it.language != choice?.language }
+    }
+
+    /** Loads (or drops) the second language to match the setting; called as captions show and the setting changes. */
+    fun reloadSecond() {
+        val c = secondChoice()
+        if (!on || c == null) {
+            if (loadedFor2 != null) { job2?.cancel(); cues2 = null; loadedFor2 = null }
+            return
+        }
+        if (c == loadedFor2) return
+        job2?.cancel()
+        loadedFor2 = c
+        cues2 = null
+        job2 = scope.launch {
+            try {
+                val source = CaptionFiles.load(c.track)
+                val target = c.translateTo
+                if (target == null) {
+                    cues2 = source
+                } else {
+                    val from = CaptionTranslator.code(c.track.base) ?: throw IOException("can't translate ${c.track.base}")
+                    CaptionTranslator.prepare(from, target)
+                    translate(source, from, target) { cues2 = it }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "second captions: ${c.track.language} → ${c.translateTo ?: "-"} failed", e)
+                if (loadedFor2 == c) loadedFor2 = null
+            }
+        }
     }
 
     /** A video's tracks are in: choose and turn on as the settings say. */
@@ -470,7 +557,7 @@ class CaptionsState(private val scope: CoroutineScope, private val positionMs: (
                 } else {
                     val from = CaptionTranslator.code(c.track.base) ?: throw IOException("can't translate ${c.track.base}")
                     CaptionTranslator.prepare(from, target)
-                    translate(source, from, target)
+                    translate(source, from, target) { cues = it }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -492,7 +579,7 @@ class CaptionsState(private val scope: CoroutineScope, private val positionMs: (
      * shares each translation out over its lines by length, so the lines keep their times. From the sentence
      * playing now onward, then the ones before; shown as they come.
      */
-    private suspend fun translate(source: List<CaptionCue>, from: String, to: String) {
+    private suspend fun translate(source: List<CaptionCue>, from: String, to: String, sink: (List<CaptionCue>) -> Unit) {
         val sentences = sentencesOf(source)
         val done = arrayOfNulls<String>(source.size)
         val now = cueIndexAt(source, positionMs()).coerceAtLeast(0)
@@ -500,7 +587,7 @@ class CaptionsState(private val scope: CoroutineScope, private val positionMs: (
         val order = (first until sentences.size) + (0 until first)
         var since = 0
         fun publish() {
-            cues = source.indices.mapNotNull { i -> done[i]?.takeIf { it.isNotBlank() }?.let { source[i].copy(text = it, words = null) } }
+            sink(source.indices.mapNotNull { i -> done[i]?.takeIf { it.isNotBlank() }?.let { source[i].copy(text = it, words = null) } })
         }
         CaptionTranslator.translate(from, to, order.map { s -> s to sentences[s].joinToString(" ") { source[it].text } }) { s, text ->
             val lines = sentences[s]

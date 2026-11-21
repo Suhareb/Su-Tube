@@ -62,8 +62,26 @@ object CommentPosting {
         )
     }
 
-    /** Likes or unlikes a comment. Looks further into the thread pages if needed. */
+    /**
+     * The like and unlike actions of every comment the app has shown, from the very pages it showed them from
+     * (any sort, any reply thread), so a like never has to hunt for its comment in the default order again.
+     */
+    private val knownLikes = java.util.concurrent.ConcurrentHashMap<String, Pair<String?, String?>>()
+
+    /** Remembers the like actions in a comments page the app is about to show. */
+    internal fun absorb(page: JSONObject) {
+        runCatching { knownLikes.putAll(parsePage(page).likeActions) }
+    }
+
+    /** Likes or unlikes a comment. Uses the actions seen with it; else looks further into the thread pages. */
     suspend fun setLiked(videoId: String, commentId: String, liked: Boolean) = withContext(Dispatchers.IO) {
+        knownLikes[commentId]?.let { (likeAction, unlikeAction) ->
+            val known = if (liked) likeAction else unlikeAction
+            if (known != null) {
+                InnerTube.post("comment/perform_comment_action", JSONObject().put("actions", JSONArray().put(known)))
+                return@withContext Unit
+            }
+        }
         val action = lock.withLock {
             val vp = cache.getOrPut(videoId) { VideoParams() }
             if (!vp.started) loadFirstPage(videoId, vp)

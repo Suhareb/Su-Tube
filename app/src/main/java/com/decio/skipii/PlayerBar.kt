@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -1017,7 +1018,7 @@ private fun BarChaptersList(bar: PlayerBarState, player: PlayerState, gate: () -
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .height(ChapterRowHeight)
+                        .heightIn(min = ChapterRowHeight)
                         .graphicsLayer {
                             val k = ramp(bar.panel.value * gate(), 0.12f + fromBottom * 0.04f, 0.62f + fromBottom * 0.04f)
                             alpha = k
@@ -1042,7 +1043,7 @@ private fun BarChaptersList(bar: PlayerBarState, player: PlayerState, gate: () -
                     Column(Modifier.weight(1f).padding(start = 12.dp, end = 6.dp)) {
                         Text(
                             chapter.title.ifBlank { stringResource(R.string.bar_chapter_untitled, index + 1) }, color = if (selected) c.onPrimary else c.onSurface,
-                            fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
                         )
                         Text(
                             formatDuration(chapter.startMs), color = if (selected) c.onPrimary.copy(alpha = 0.8f) else c.onSurfaceVariant,

@@ -30,6 +30,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -165,6 +166,8 @@ fun VideoContent(
     onInactiveTap: () -> Unit = {},
     /** Portrait with the controls on the video: the scrub on the video's bottom edge. */
     edge: EdgeScrub? = null,
+    /** Fullscreen: the lock button at the top left locks the screen against touches (see FullscreenPlayer). */
+    onLock: (() -> Unit)? = null,
 ) {
     val overlay = fullscreen || !PlayerControls.inBar
     // Hidden until the video is tapped: opening the player (from the mini-player too) and
@@ -318,9 +321,9 @@ fun VideoContent(
             var pendingAt = 0L
             awaitEachGesture {
                 val down = awaitFirstDown()
-                // Held still on the right side: 2× until it lifts (GitHub #36). Moving first (a swipe,
+                // Held still anywhere on the video: 2× until it lifts (GitHub #36). Moving first (a swipe,
                 // the volume slide, a scrub) takes the gesture away from it before the timeout.
-                val holdable = currentInteractive && state.error == null && !burstActive && down.position.x / size.width > 0.6f
+                val holdable = currentInteractive && state.error == null && !burstActive
                 val up = (if (!holdable) waitForUpOrCancellation() else try {
                     withTimeout(viewConfiguration.longPressTimeoutMillis) { waitForUpOrCancellation() }
                 } catch (_: PointerEventTimeoutCancellationException) {
@@ -453,6 +456,8 @@ fun VideoContent(
             )
         }
         SkippedNote(state, Modifier.align(Alignment.TopCenter).padding(top = 12.dp).graphicsLayer { alpha = controlsAlpha() })
+        // The last seconds, with something queued: what plays next, and a way to stop it.
+        UpNextCard(state, Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = if (fullscreen) 56.dp else 12.dp))
         // The Ask pill stays reachable while the controls are hidden.
         if (!controlsVisible) {
             state.askSegment?.let { segment ->
@@ -499,6 +504,11 @@ fun VideoContent(
                 ) {
                     // No minimize button: swipe the player down (or Back) instead.
                     if (fullscreen) {
+                        if (onLock != null) {
+                            OverlayTile(stringResource(R.string.video_lock_screen), enabled, tool, onClick = { controlsVisible = false; onLock() }) { ink ->
+                                Icon(Icons.Rounded.Lock, null, tint = ink, modifier = Modifier.size(tool * 0.5f))
+                            }
+                        }
                         Text(
                             state.current?.title.orEmpty(),
                             color = Color.White,
@@ -1094,6 +1104,9 @@ fun FullscreenPlayer(state: PlayerState, onExit: () -> Unit) {
     // and up to bring in the recommendations (a row of videos along the bottom).
     val sliders = rememberFullscreenSliders()
     var recommendations by remember { mutableStateOf(false) }
+    // Screen lock: the video ignores touches (nothing seeks or swipes by accident) until the unlock button is held.
+    var locked by remember { mutableStateOf(false) }
+    BackHandler(enabled = locked) { locked = false }
     val hasRecommendations = state.details?.related?.isNotEmpty() == true
     BackHandler(enabled = recommendations) { recommendations = false }
     Box(Modifier.fillMaxSize()) {
@@ -1102,6 +1115,7 @@ fun FullscreenPlayer(state: PlayerState, onExit: () -> Unit) {
             fullscreen = true,
             onCollapse = onExit,
             onToggleFullscreen = onExit,
+            onLock = { locked = true },
             modifier = Modifier
                 .fillMaxSize()
                 .fullscreenGestures(
@@ -1117,6 +1131,48 @@ fun FullscreenPlayer(state: PlayerState, onExit: () -> Unit) {
         )
         SliderLevel(sliders)
         RecommendationsRow(state, open = recommendations && hasRecommendations, onClose = { recommendations = false })
+        if (locked) ScreenLockOverlay(onUnlock = { locked = false })
+    }
+}
+
+/**
+ * Over the whole video while the screen is locked: it takes every touch. A tap brings up "Hold to unlock" for a
+ * few seconds; holding that button unlocks (Back does too).
+ */
+@Composable
+private fun BoxScope.ScreenLockOverlay(onUnlock: () -> Unit) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    var hint by remember { mutableStateOf(false) }
+    LaunchedEffect(hint) { if (hint) { delay(3000); hint = false } }
+    Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { hint = true } })
+    if (hint) {
+        Row(
+            Modifier
+                .align(Alignment.Center)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.72f))
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        val held = try {
+                            withTimeout(800) { waitForUpOrCancellation() }
+                            false
+                        } catch (_: PointerEventTimeoutCancellationException) {
+                            true
+                        }
+                        if (held) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            onUnlock()
+                        }
+                    }
+                }
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.Lock, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(stringResource(R.string.video_hold_to_unlock), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
     }
 }
 
@@ -1869,5 +1925,49 @@ private fun Scrubber(
             if (x > 0f && x < size.width) drawRect(Color.Black, Offset(x - gap / 2f, y), Size(gap, trackH), blendMode = BlendMode.Clear)
         }
         drawCircle(played, radius = knobRadius.toPx(), center = Offset(size.width * playedFraction, size.height / 2f))
+    }
+}
+
+
+/** How long before the end the "Up next" card shows. */
+private const val UpNextMs = 8_000L
+
+/**
+ * In the last seconds of a video, with something queued: "Up next in 5", the video, and Play now / Cancel.
+ * Cancel keeps the queue but stops after this video instead of rolling on.
+ */
+@Composable
+private fun UpNextCard(state: PlayerState, modifier: Modifier = Modifier) {
+    val next = state.queue.firstOrNull() ?: return
+    val id = state.current?.id ?: return
+    var cancelled by remember(id) { mutableStateOf(false) }
+    val remaining = state.durationMs - state.positionMs
+    if (cancelled || state.durationMs <= 0L || !state.isPlaying || remaining !in 1..UpNextMs) return
+    val c = MaterialTheme.colorScheme
+    val seconds = ((remaining + 999) / 1000).toInt()
+    Row(
+        modifier
+            .widthIn(max = 340.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.Black.copy(alpha = 0.78f))
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Thumbnail(next.thumbnail, Modifier.width(72.dp).aspectRatio(16f / 9f), radius = 10)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f, fill = false)) {
+            Text(stringResource(R.string.ui_up_next_in, seconds), color = c.primary, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+            Text(next.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.ui_play_now), color = c.onPrimary, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp,
+                    modifier = Modifier.pressable { state.playNextUp() }.clip(CircleShape).background(c.primary).padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+                Text(
+                    stringResource(R.string.ui_cancel), color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp,
+                    modifier = Modifier.pressable { cancelled = true; state.cancelUpNext() }.clip(CircleShape).background(Color.White.copy(alpha = 0.18f)).padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
     }
 }

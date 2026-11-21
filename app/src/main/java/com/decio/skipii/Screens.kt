@@ -40,6 +40,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.ui.text.style.TextOverflow
@@ -129,7 +131,7 @@ fun HomeScreen(
     ) { top ->
         if (signedIn) {
             val home = lib.home
-            FeedList(home, contentPadding.withTop(top), onOpen, header = {
+            FeedList(home, contentPadding.withTop(top), onOpen, filter = { !WatchedFilter.hides(it) }, header = {
                 // Always present (empty until YouTube sends chips) so their arrival never shifts the list.
                 item(key = "chips") { if (home.chips.isNotEmpty()) HomeChips(home.chips, home.chip, home::selectChip) }
                 // A chip whose page held no videos: say so, never a blank page.
@@ -183,7 +185,7 @@ fun SubscriptionsScreen(
         header = { ScreenHeader(title = stringResource(R.string.ui_subscriptions_title)) { AccountAction(onAccount) } },
     ) { top ->
         if (signedIn) {
-            FeedList(lib.subscriptions, contentPadding.withTop(top), onOpen, header = {
+            FeedList(lib.subscriptions, contentPadding.withTop(top), onOpen, filter = { !WatchedFilter.hides(it) }, header = {
                 // Always present (empty until loaded) so its arrival never shifts the list; the
                 // row kept from last time shows from the first frame (LibraryData).
                 item(key = "channels") { if (lib.channels.isNotEmpty()) ChannelRail(lib.channels) }
@@ -416,6 +418,7 @@ fun LibraryScreen(
         val watchLater = stringResource(R.string.ui_watch_later)
         val likedVideos = stringResource(R.string.ui_liked_videos)
         val showAll = stringResource(R.string.ui_history_all)
+        val continueTitle = stringResource(R.string.ui_continue_watching)
         LazyColumn(state = rememberScrollToTop(scrollToTop), contentPadding = contentPadding.withTop(top)) {
             if (!signedIn) {
                 item {
@@ -427,6 +430,21 @@ fun LibraryScreen(
                     )
                 }
                 return@LazyColumn
+            }
+            // Continue watching: what was started and isn't nearly done, with the time left.
+            val unfinished = lib.history.videos.distinctBy { it.id }.mapNotNull { v ->
+                val f = WatchedFilter.fraction(v)
+                if (f != null && f > 0.01f && f < 0.8f && v.durationSec > 0) v to f else null
+            }.take(15)
+            if (!pinHistory && unfinished.isNotEmpty()) {
+                item(key = "continueTitle") { SectionTitle(continueTitle) }
+                item(key = "continue") {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(unfinished, key = { "c-" + it.first.id }) { (video, fraction) ->
+                            HistoryCard(video, leftText = timeLeft(((1f - fraction) * video.durationSec).toLong())) { onOpen(video) }
+                        }
+                    }
+                }
             }
             if (!pinHistory) item(key = "historyTitle") { historyHeader() }
             // Expanded: the whole history as cards that keep loading as it's scrolled (heading and search sit above).
@@ -491,6 +509,24 @@ fun LibraryScreen(
     }
 }
 
+/** "12 min left" / "1 h 5 min left" for a video with [seconds] still to watch. */
+private fun timeLeft(seconds: Long): String {
+    val minutes = ((seconds + 59) / 60).coerceAtLeast(1)
+    return if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min left" else "$minutes min left"
+}
+
+/** Five greetings for each part of the day ([pick] chooses among them): morning, midday, afternoon, evening, night. */
+private fun greeting(name: String, hour: Int, pick: Int): String {
+    val options = when (hour) {
+        in 5..10 -> listOf("Good morning, %s", "Rise and shine, %s", "Morning, %s! Fresh start", "Top of the morning, %s", "Hello sunshine, %s")
+        in 11..13 -> listOf("Good day, %s", "Happy midday, %s", "Lunchtime, %s? Pick something good", "Hope your day is going well, %s", "Hey %s, halfway there")
+        in 14..17 -> listOf("Good afternoon, %s", "Hope the afternoon is kind to you, %s", "Afternoon, %s! Time for a break", "Hey %s, keep it going", "Hello again, %s")
+        in 18..21 -> listOf("Good evening, %s", "Evening, %s! Time to unwind", "Welcome back, %s", "Relax, %s, the day is done", "Hey %s, settle in")
+        else -> listOf("Good night, %s", "Still up, %s?", "Late one, %s? Welcome", "Hello night owl, %s", "Sweet dreams soon, %s")
+    }
+    return options[pick % options.size].format(name)
+}
+
 /** The Library's greeting: the profile picture, "Hello, name", then View channel on the left and Settings on the right. */
 @Composable
 private fun LibraryHero(onSettings: () -> Unit) {
@@ -503,10 +539,12 @@ private fun LibraryHero(onSettings: () -> Unit) {
     ) {
         ChannelAvatar(profile.avatar, profile.name, size = 88)
         Spacer(Modifier.height(10.dp))
+        // A different greeting for the time of day, picked once each time the Library opens.
+        val pick = remember { kotlin.random.Random.nextInt(5) }
         Text(
-            stringResource(R.string.ui_hello, profile.name),
+            greeting(profile.name, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), pick),
             fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -620,7 +658,7 @@ private fun HistorySearchField(value: String, onChange: (String) -> Unit) {
 }
 
 @Composable
-private fun HistoryCard(video: VideoItem, onClick: () -> Unit) {
+private fun HistoryCard(video: VideoItem, leftText: String? = null, onClick: () -> Unit) {
     val menu = LocalVideoMenu.current
     Column(Modifier.width(168.dp).prefetchOnPress(video.id).pressable(pressedScale = 0.97f, onLongClick = { menu(video) }, onClick = onClick)) {
         Box {
@@ -630,6 +668,9 @@ private fun HistoryCard(video: VideoItem, onClick: () -> Unit) {
         }
         Spacer(Modifier.height(7.dp))
         Text(video.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (leftText != null) {
+            Text(leftText, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        }
     }
 }
 
@@ -665,6 +706,9 @@ private fun PlaylistTile(playlist: PlaylistRef, modifier: Modifier, onClick: () 
     }
 }
 
+/** Starts a list of videos from its first one, the rest going into the queue (Play all, Shuffle). Provided by the shell. */
+val LocalPlayAll = androidx.compose.runtime.staticCompositionLocalOf<(List<VideoItem>, Boolean) -> Unit> { { _, _ -> } }
+
 /** A playlist's videos (Watch later, Liked, or the user's own). Watch later and Liked also get filter chips. */
 @Composable
 fun PlaylistScreen(playlist: PlaylistRef, feed: FeedState, contentPadding: PaddingValues, onBack: () -> Unit, onOpen: (VideoItem) -> Unit) {
@@ -679,6 +723,12 @@ fun PlaylistScreen(playlist: PlaylistRef, feed: FeedState, contentPadding: Paddi
             .entries.sortedByDescending { it.value }.take(8).map { it.key }
     }
     val lengths = remember(videos) { SearchLength.values().filter { l -> videos.any { lengthOf(it) == l } } }
+    // Open playlist, for "Remove from …" in a video's options.
+    androidx.compose.runtime.DisposableEffect(playlist.id, feed) {
+        PlaylistContext.current = PlaylistRemoval(playlist, feed)
+        onDispose { if (PlaylistContext.current?.playlist?.id == playlist.id) PlaylistContext.current = null }
+    }
+    val playAll = LocalPlayAll.current
     val filterOn = channelFilter != null || lengthFilter != null
     val accept: ((VideoItem) -> Boolean)? = if (!saved || !filterOn) null else { v ->
         (channelFilter == null || v.channel == channelFilter) && (lengthFilter == null || lengthOf(v) == lengthFilter)
@@ -699,6 +749,17 @@ fun PlaylistScreen(playlist: PlaylistRef, feed: FeedState, contentPadding: Paddi
                 fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, letterSpacing = (-0.8).sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (videos.isNotEmpty()) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HeroButton(Icons.Rounded.PlayArrow, stringResource(R.string.ui_play_all), primary = true) {
+                    playAll(if (accept == null) feed.videos else feed.videos.filter(accept), false)
+                }
+                HeroButton(Icons.Rounded.Shuffle, stringResource(R.string.ui_shuffle), primary = false) {
+                    playAll(if (accept == null) feed.videos else feed.videos.filter(accept), true)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
         }
         if (saved && (channels.size > 1 || lengths.size > 1)) {
             LazyRow(
