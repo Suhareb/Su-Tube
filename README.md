@@ -102,5 +102,5 @@ CLAUDE.md             product decisions and working rules for AI-assisted develo
 
 GPL-3.0. See [LICENSE](LICENSE). Required because NewPipeExtractor is GPL-3.0.
 
-Skipii is not affiliated with or endorsed by YouTube or Google. It's a personal project for
+Su Tube is not affiliated with or endorsed by YouTube or Google. It's a personal project for
 sideloading, not distributed through the Play Store.
