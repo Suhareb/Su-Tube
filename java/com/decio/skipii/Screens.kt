@@ -1,0 +1,1178 @@
+package com.decio.skipii
+
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.rounded.WatchLater
+import androidx.compose.material3.contentColorFor
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Subscriptions
+import androidx.compose.material.icons.rounded.TravelExplore
+import androidx.compose.material.icons.rounded.VideoLibrary
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import android.view.inputmethod.InputMethodManager
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+
+// ── Home / Subscriptions / Library ─────────────────────────────────────────────
+// Signed in, these show the account's real feeds. Signed out, they explain what signing
+// in brings rather than showing sample content.
+
+@Composable
+fun HomeScreen(
+    lib: LibraryData,
+    contentPadding: PaddingValues,
+    onOpen: (VideoItem) -> Unit,
+    onSearch: () -> Unit,
+    onSignIn: () -> Unit,
+    onAccount: () -> Unit,
+    scrollToTop: Int = 0,
+    /** Wide windows (Rail 3): Shorts as one compact card in the grid, never a shelf. */
+    shortsCard: (@Composable (Modifier) -> Unit)? = null,
+) {
+    val signedIn = Account.signedIn
+    LaunchedEffect(signedIn) { if (signedIn) lib.home.ensureLoaded() }
+    CollapsingHeaderLayout(
+        resetKey = scrollToTop to lib.home.generation,
+        header = { ScreenHeader(title = "Su Tube", brandMark = true) { UpdateAction(); AccountAction(onAccount) } },
+    ) { top ->
+        if (signedIn) {
+            val home = lib.home
+            FeedList(home, contentPadding.withTop(top), onOpen, filter = { !WatchedFilter.hides(it) }, header = {
+                // Always present (empty until YouTube sends chips) so their arrival never shifts the list.
+                item(key = "chips") { if (home.chips.isNotEmpty()) HomeChips(home.chips, home.chip, home::selectChip) }
+                // A chip whose page held no videos: say so, never a blank page.
+                val chosen = home.chip
+                val plain = home.chips.firstOrNull { it.token == null }
+                if (chosen != null && home.loadedEmpty) item(key = "chipEmpty") {
+                    EmptyState(
+                        icon = Icons.Rounded.VideoLibrary,
+                        title = stringResource(R.string.ui_chip_empty_title),
+                        body = stringResource(R.string.ui_chip_empty_body, chosen.title),
+                        action = plain?.let { { PillButton(it.title, { home.selectChip(it) }) } },
+                    )
+                }
+            }, scrollToTop = scrollToTop, indicatorTop = top, gridExtra = shortsCard)
+        } else {
+            LazyColumn(contentPadding = contentPadding.withTop(top)) {
+                item {
+                    EmptyState(
+                        icon = Icons.Rounded.Subscriptions,
+                        title = stringResource(R.string.ui_home_signed_out_title),
+                        body = stringResource(R.string.ui_home_signed_out_body),
+                        action = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                PillButton(stringResource(R.string.ui_sign_in_with_google), onSignIn)
+                                Spacer(Modifier.height(12.dp))
+                                TextLink(stringResource(R.string.ui_search_instead), onSearch)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SubscriptionsScreen(
+    lib: LibraryData,
+    contentPadding: PaddingValues,
+    onOpen: (VideoItem) -> Unit,
+    onSignIn: () -> Unit,
+    onAccount: () -> Unit,
+    scrollToTop: Int = 0,
+) {
+    val signedIn = Account.signedIn
+    LaunchedEffect(signedIn) {
+        if (signedIn) lib.showSubscriptions()
+    }
+    CollapsingHeaderLayout(
+        resetKey = scrollToTop to lib.subscriptions.generation,
+        header = { ScreenHeader(title = stringResource(R.string.ui_subscriptions_title)) { AccountAction(onAccount) } },
+    ) { top ->
+        if (signedIn) {
+            FeedList(lib.subscriptions, contentPadding.withTop(top), onOpen, filter = { !WatchedFilter.hides(it) }, header = {
+                // Always present (empty until loaded) so its arrival never shifts the list; the
+                // row kept from last time shows from the first frame (LibraryData).
+                item(key = "channels") { if (lib.channels.isNotEmpty()) ChannelRail(lib.channels) }
+            }, scrollToTop = scrollToTop, indicatorTop = top)
+        } else {
+            LazyColumn(contentPadding = contentPadding.withTop(top)) {
+                item {
+                    EmptyState(
+                        icon = Icons.Rounded.Subscriptions,
+                        title = stringResource(R.string.ui_subscriptions_signed_out_title),
+                        body = stringResource(R.string.ui_subscriptions_signed_out_body),
+                        action = { PillButton(stringResource(R.string.ui_sign_in_with_google), onSignIn) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Home's category chips as YouTube sent them ("All", "Music", "Gaming"…): plain words in a row
+ * that scrolls (Derek picked B "Underline" in docs/design/home-chips.html). The chosen word is
+ * primary and heavier, and a short rounded bar springs under it from the last pick. The row
+ * fades out at whichever edge has more to scroll to.
+ */
+@Composable
+private fun HomeChips(chips: List<FeedChip>, chosen: FeedChip?, onPick: (FeedChip) -> Unit) {
+    val selected = chips.indexOfFirst { chosen?.let { ch -> ch.title == it.title } ?: (it.token == null) }
+    UnderlineTabs(chips.map { it.title }, selected, { onPick(chips[it]) }, Modifier.padding(top = 2.dp, bottom = 10.dp))
+}
+
+/**
+ * Words in a row that scrolls, the [selected] one primary and heavier with a short rounded bar
+ * springing under it from the last pick; the row fades out at whichever edge has more to scroll
+ * to. Home's categories and a channel's tabs.
+ */
+@Composable
+fun UnderlineTabs(labels: List<String>, selected: Int, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val c = MaterialTheme.colorScheme
+    val reduced = rememberReducedMotion()
+    val density = LocalDensity.current
+    val scroll = rememberScrollState()
+    // Each word's left edge and width in the row, in px (written as they're placed).
+    val spots = remember(labels) { mutableStateMapOf<Int, Pair<Float, Float>>() }
+    val barLeft = remember { Animatable(0f) }
+    val barWidth = remember { Animatable(0f) }
+    var barShown by remember { mutableStateOf(false) }
+    val target = spots[selected]
+    LaunchedEffect(target) {
+        val (left, width) = target ?: return@LaunchedEffect
+        val w = maxOf(width * ChipBarShare, with(density) { ChipBarMin.toPx() })
+        val l = left + (width - w) / 2
+        if (!barShown || reduced) {
+            barLeft.snapTo(l); barWidth.snapTo(w); barShown = true
+            return@LaunchedEffect
+        }
+        val spec = spring<Float>(dampingRatio = 0.62f, stiffness = 450f)
+        launch { barLeft.animateTo(l, spec) }
+        barWidth.animateTo(w, spec)
+    }
+    // A pick near an edge scrolls the row to bring it to the middle.
+    LaunchedEffect(selected) {
+        val (left, width) = spots[selected] ?: return@LaunchedEffect
+        val edge = with(density) { ChipRowPadding.toPx() }
+        val x = left + edge
+        val view = scroll.viewportSize
+        if (x - edge < scroll.value || x + width + edge > scroll.value + view) {
+            val to = (x + width / 2 - view / 2f).toInt()
+            if (reduced) scroll.scrollTo(to) else scroll.animateScrollTo(to)
+        }
+    }
+    val fade = with(density) { ChipRowFade.toPx() }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                // Fade only where there's more row to scroll to.
+                val leftFade = (scroll.value / fade).coerceIn(0f, 1f)
+                val rightFade = ((scroll.maxValue - scroll.value) / fade).coerceIn(0f, 1f)
+                val w = size.width
+                drawRect(
+                    Brush.horizontalGradient(
+                        0f to Color.Black.copy(alpha = 1f - leftFade),
+                        (fade / w) to Color.Black,
+                        (1f - fade / w) to Color.Black,
+                        1f to Color.Black.copy(alpha = 1f - rightFade),
+                    ),
+                    blendMode = BlendMode.DstIn,
+                )
+            },
+    ) {
+        Row(
+            Modifier
+                .horizontalScroll(scroll)
+                .padding(horizontal = ChipRowPadding)
+                .drawBehind {
+                    if (!barShown) return@drawBehind
+                    val h = ChipBarHeight.toPx()
+                    drawRoundRect(
+                        c.primary,
+                        topLeft = Offset(barLeft.value, size.height - h),
+                        size = Size(barWidth.value, h),
+                        cornerRadius = CornerRadius(h / 2),
+                    )
+                },
+        ) {
+            labels.forEachIndexed { i, label ->
+                val on = i == selected
+                val pad = with(density) { ChipWordPadding.toPx() }
+                val fg by animateColorAsState(if (on) c.primary else c.onSurfaceVariant, tween(if (reduced) 0 else 220), label = "chipFg")
+                Box(
+                    Modifier
+                        .onPlaced { spots[i] = it.positionInParent().x + pad to it.size.width - 2 * pad }
+                        .pressable(onClick = { onPick(i) })
+                        .height(ChipRowHeight)
+                        .padding(horizontal = ChipWordPadding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        color = fg,
+                        fontWeight = if (on) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The row ([UnderlineTabs]): 20 dp in from the edges, words 22 dp apart (11 dp of tap room each side). */
+private val ChipRowPadding = 9.dp
+private val ChipWordPadding = 11.dp
+private val ChipRowHeight = 40.dp
+private val ChipRowFade = 28.dp
+/** The bar under the chosen word: 60% of the word, never under 18 dp, 4 dp tall. */
+private const val ChipBarShare = 0.6f
+private val ChipBarMin = 18.dp
+private val ChipBarHeight = 4.dp
+
+@Composable
+private fun ChannelRail(channels: List<ChannelRef>) {
+    val c = MaterialTheme.colorScheme
+    val openChannel = LocalChannelOpener.current
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+    ) {
+        items(channels, key = { it.id }) { ch ->
+            Column(
+                Modifier.width(64.dp).pressable { openChannel("https://www.youtube.com/channel/${ch.id}") },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                ChannelAvatar(ch.avatar, ch.name, size = 56)
+                Spacer(Modifier.height(6.dp))
+                Text(ch.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = c.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+fun LibraryScreen(
+    lib: LibraryData,
+    contentPadding: PaddingValues,
+    onOpen: (VideoItem) -> Unit,
+    onOpenPlaylist: (PlaylistRef) -> Unit,
+    onSignIn: () -> Unit,
+    onAccount: () -> Unit,
+    scrollToTop: Int = 0,
+) {
+    val signedIn = Account.signedIn
+    // The history row expanded into the whole list ("Show all"), and what's typed in its search box.
+    var historyOpen by rememberSaveable { mutableStateOf(false) }
+    var historyQuery by rememberSaveable { mutableStateOf("") }
+    val columns = gridColumns()
+    // Expanded History pins the page title, the History heading with Show less, and the search box above the
+    // list: they never scroll away, and only the videos move beneath them.
+    val pinHistory = signedIn && historyOpen && lib.history.videos.isNotEmpty()
+    val showAllLabel = stringResource(R.string.ui_history_all)
+    val showLessLabel = stringResource(R.string.ui_history_less)
+    val historyTitle = stringResource(R.string.ui_history)
+    val historyHeader: @Composable () -> Unit = {
+        LibraryRowTitle(
+            title = historyTitle,
+            label = if (lib.history.videos.isNotEmpty()) (if (historyOpen) showLessLabel else showAllLabel) else null,
+            icon = if (historyOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+        ) { historyOpen = !historyOpen; if (!historyOpen) historyQuery = "" }
+    }
+    // A video watched since the list was read: read it again (the list also shows it at once, see RecentWatched).
+    LaunchedEffect(RecentWatched.version) {
+        if (signedIn && RecentWatched.version > 0 && lib.history.videos.isNotEmpty()) lib.history.refresh()
+    }
+    LaunchedEffect(signedIn) {
+        if (signedIn) {
+            lib.history.ensureLoaded()
+            lib.watchLater.ensureLoaded()
+            lib.liked.ensureLoaded()
+            if (lib.playlists.isEmpty()) lib.loadPlaylists()
+        }
+    }
+    CollapsingHeaderLayout(
+        resetKey = Triple(scrollToTop, lib.history.generation, pinHistory),
+        locked = pinHistory,
+        header = {
+            Column {
+                // Signed in: the notifications bell stays at the top; the profile moves into the greeting below.
+                ScreenHeader(title = stringResource(R.string.ui_library_title)) { if (signedIn) InboxBell() else AccountAction(onAccount) }
+                if (signedIn && !pinHistory) LibraryHero(onSettings = onAccount)
+                if (pinHistory) {
+                    historyHeader()
+                    HistorySearchField(historyQuery) { historyQuery = it }
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+        },
+    ) { top ->
+        PullToRefresh(
+            enabled = signedIn,
+            refreshing = lib.history.refreshing,
+            onRefresh = { lib.history.refresh(); lib.watchLater.refresh(); lib.liked.refresh(); lib.loadPlaylists() },
+            topPadding = top,
+        ) {
+        // Resolved here: the list's builder below isn't composable.
+        val watchLater = stringResource(R.string.ui_watch_later)
+        val likedVideos = stringResource(R.string.ui_liked_videos)
+        val showAll = stringResource(R.string.ui_history_all)
+        val continueTitle = stringResource(R.string.ui_continue_watching)
+        LazyColumn(state = rememberScrollToTop(scrollToTop), contentPadding = contentPadding.withTop(top)) {
+            if (!signedIn) {
+                item {
+                    EmptyState(
+                        icon = Icons.Rounded.VideoLibrary,
+                        title = stringResource(R.string.ui_library_signed_out_title),
+                        body = stringResource(R.string.ui_library_signed_out_body),
+                        action = { PillButton(stringResource(R.string.ui_sign_in_with_google), onSignIn) },
+                    )
+                }
+                return@LazyColumn
+            }
+            // Continue watching: what was started and isn't nearly done, with the time left.
+            val unfinished = lib.history.videos.distinctBy { it.id }.mapNotNull { v ->
+                val f = WatchedFilter.fraction(v)
+                if (f != null && f > 0.01f && f < 0.8f && v.durationSec > 0) v to f else null
+            }.take(15)
+            if (!pinHistory && unfinished.isNotEmpty()) {
+                item(key = "continueTitle") { SectionTitle(continueTitle) }
+                item(key = "continue") {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(unfinished, key = { "c-" + it.first.id }) { (video, fraction) ->
+                            HistoryCard(video, leftText = timeLeft(((1f - fraction) * video.durationSec).toLong())) { onOpen(video) }
+                        }
+                    }
+                }
+            }
+            if (!pinHistory) item(key = "historyTitle") { historyHeader() }
+            // Expanded: the whole history as cards that keep loading as it's scrolled (heading and search sit above).
+            if (pinHistory) {
+                val all = lib.history.videos.distinctBy { it.id }
+                val query = historyQuery.trim()
+                val matches = if (query.isEmpty()) all else all.filter { it.title.contains(query, ignoreCase = true) || it.channel.contains(query, ignoreCase = true) }
+                videoCards(matches, columns, onOpen)
+                if (query.isNotEmpty() && matches.isEmpty() && !lib.history.hasMore && !lib.history.loading) item(key = "historyNoMatch") {
+                    Text(
+                        stringResource(R.string.ui_history_no_match),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    )
+                }
+                if (lib.history.hasMore || lib.history.loading) item(key = "historyMore") {
+                    // Composed as it comes into view: the cue for the next page (a search keeps reading on until it finds matches).
+                    LaunchedEffect(lib.history.videos.size) { lib.history.loadMore() }
+                    Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
+                    }
+                }
+            } else item(key = "history") {
+                val history = lib.history.videos
+                when {
+                    history.isNotEmpty() -> LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(history.take(20), key = { "h-" + it.id }) { video -> HistoryCard(video) { onOpen(video) } }
+                    }
+                    lib.history.loading -> Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
+                    }
+                    else -> Text(
+                        lib.history.error ?: stringResource(R.string.ui_history_empty),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    )
+                }
+            }
+            // Watch later and Liked videos: rows like History; Show all opens the usual playlist page.
+            item(key = "watchLaterTitle") {
+                LibraryRowTitle(watchLater, showAll, Icons.AutoMirrored.Rounded.KeyboardArrowRight) { onOpenPlaylist(PlaylistRef("WL", watchLater, null, null)) }
+            }
+            item(key = "watchLater") { LibraryVideoRow(lib.watchLater, "wl", onOpen) }
+            item(key = "likedTitle") {
+                LibraryRowTitle(likedVideos, showAll, Icons.AutoMirrored.Rounded.KeyboardArrowRight) { onOpenPlaylist(PlaylistRef("LL", likedVideos, null, null)) }
+            }
+            item(key = "liked") { LibraryVideoRow(lib.liked, "ll", onOpen) }
+            if (lib.playlists.isNotEmpty()) {
+                item(key = "playlistsTitle") { SectionTitle(stringResource(R.string.ui_playlists)) }
+                items(lib.playlists.chunked(2), key = { row -> row.joinToString { it.id } }) { row ->
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { pl -> PlaylistTile(pl, Modifier.weight(1f)) { onOpenPlaylist(pl) } }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        }
+    }
+}
+
+/** "12 min left" / "1 h 5 min left" for a video with [seconds] still to watch. */
+private fun timeLeft(seconds: Long): String {
+    val minutes = ((seconds + 59) / 60).coerceAtLeast(1)
+    return if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min left" else "$minutes min left"
+}
+
+/** Five greetings for each part of the day ([pick] chooses among them): morning, midday, afternoon, evening, night. */
+private fun greeting(name: String, hour: Int, pick: Int): String {
+    val options = when (hour) {
+        in 5..10 -> listOf("Good morning, %s", "Rise and shine, %s", "Morning, %s! Fresh start", "Top of the morning, %s", "Hello sunshine, %s")
+        in 11..13 -> listOf("Good day, %s", "Happy midday, %s", "Lunchtime, %s? Pick something good", "Hope your day is going well, %s", "Hey %s, halfway there")
+        in 14..17 -> listOf("Good afternoon, %s", "Hope the afternoon is kind to you, %s", "Afternoon, %s! Time for a break", "Hey %s, keep it going", "Hello again, %s")
+        in 18..21 -> listOf("Good evening, %s", "Evening, %s! Time to unwind", "Welcome back, %s", "Relax, %s, the day is done", "Hey %s, settle in")
+        else -> listOf("Good night, %s", "Still up, %s?", "Late one, %s? Welcome", "Hello night owl, %s", "Sweet dreams soon, %s")
+    }
+    return options[pick % options.size].format(name)
+}
+
+/**
+ * The greeting, appearing in one of five ways (the same five for every greeting): typed out, rising and fading in,
+ * word by word, letters drawing together, or a light sweeping across it.
+ */
+@Composable
+private fun AnimatedGreeting(text: String, effect: Int) {
+    val ink = MaterialTheme.colorScheme.onSurface
+    val reduced = rememberReducedMotion()
+    val progress = remember(text, effect) { Animatable(if (reduced) 1f else 0f) }
+    LaunchedEffect(text, effect) {
+        if (!reduced) progress.animateTo(1f, tween(if (effect == 0) 1500 else 950, easing = LinearEasing))
+    }
+    val p = progress.value
+    val base = androidx.compose.ui.text.TextStyle(
+        fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = ink,
+    )
+    when (effect) {
+        // Typed out: the letters not typed yet keep their room, invisibly, so nothing shifts.
+        0 -> {
+            val shown = (p * text.length).toInt().coerceIn(0, text.length)
+            Text(
+                buildAnnotatedString {
+                    append(text.substring(0, shown))
+                    withStyle(SpanStyle(color = Color.Transparent)) { append(text.substring(shown)) }
+                },
+                style = base, maxLines = 2,
+            )
+        }
+        // Rising and fading in.
+        1 -> Text(
+            text, style = base, maxLines = 2,
+            modifier = Modifier.graphicsLayer { alpha = p; translationY = (1f - p) * 26.dp.toPx() },
+        )
+        // Word by word, each fading up in turn.
+        2 -> {
+            val words = text.split(' ')
+            Text(
+                buildAnnotatedString {
+                    words.forEachIndexed { i, word ->
+                        val a = (p * (words.size + 1) - i).coerceIn(0f, 1f)
+                        withStyle(SpanStyle(color = ink.copy(alpha = a))) { append(word) }
+                        if (i < words.lastIndex) append(" ")
+                    }
+                },
+                style = base, maxLines = 2,
+            )
+        }
+        // Letters drawing together out of a wide spread.
+        3 -> Text(
+            text, style = base.copy(letterSpacing = (16f * (1f - p)).sp, color = ink.copy(alpha = p)), maxLines = 2,
+        )
+        // A light sweeping across, then the plain text.
+        else -> {
+            val w = with(androidx.compose.ui.platform.LocalDensity.current) { 360.dp.toPx() }
+            val style = if (p >= 1f) base else base.copy(
+                brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = listOf(ink.copy(alpha = 0.22f), ink, ink.copy(alpha = 0.22f)),
+                    start = androidx.compose.ui.geometry.Offset(-w + p * 2f * w, 0f),
+                    end = androidx.compose.ui.geometry.Offset(p * 2f * w, 0f),
+                ),
+            )
+            Text(text, style = style, maxLines = 2)
+        }
+    }
+}
+
+/** The Library's greeting: the profile picture, "Hello, name", then View channel on the left and Settings on the right. */
+@Composable
+private fun LibraryHero(onSettings: () -> Unit) {
+    val profile = Account.profile ?: return
+    val openChannel = LocalChannelOpener.current
+    val handle = profile.handle?.trim()?.takeIf { it.isNotEmpty() }
+    Column(
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        ChannelAvatar(profile.avatar, profile.name, size = 88)
+        Spacer(Modifier.height(10.dp))
+        // A different greeting for the time of day, and one of five ways it appears, picked each time the Library opens.
+        val pick = remember { kotlin.random.Random.nextInt(5) }
+        val effect = remember { kotlin.random.Random.nextInt(5) }
+        AnimatedGreeting(greeting(profile.name, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), pick), effect)
+        Spacer(Modifier.height(14.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            if (handle != null) {
+                HeroButton(Icons.Rounded.Person, stringResource(R.string.ui_view_channel), primary = true) {
+                    openChannel("https://www.youtube.com/" + if (handle.startsWith("@")) handle else "@$handle")
+                }
+            } else Spacer(Modifier.width(1.dp))
+            HeroButton(Icons.Rounded.Settings, stringResource(R.string.settings_title), primary = false, onClick = onSettings)
+        }
+    }
+}
+
+@Composable
+private fun HeroButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, primary: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .pressable(pressedScale = 0.96f, onClick = onClick)
+            .clip(CircleShape)
+            .background(if (primary) c.primaryContainer else c.surfaceContainerHigh)
+            .padding(horizontal = 18.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val tint = if (primary) c.onPrimaryContainer else c.onSurface
+        Icon(icon, null, tint = tint, modifier = Modifier.size(19.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = tint, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+    }
+}
+
+/** A Library row's heading with a button at its end ([label] null: no button). */
+@Composable
+private fun LibraryRowTitle(title: String, label: String?, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        SectionTitle(title, Modifier.weight(1f))
+        if (label != null) {
+            Row(
+                Modifier.padding(end = 12.dp, top = 12.dp)
+                    .pressable(pressedScale = 0.95f, onClick = onClick)
+                    .clip(CircleShape)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(label, color = c.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Icon(icon, null, tint = c.primary, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+/** A row of video cards for a Library list (Watch later, Liked videos): its first twenty, scrolling sideways. */
+@Composable
+private fun LibraryVideoRow(feed: FeedState, keyPrefix: String, onOpen: (VideoItem) -> Unit) {
+    val videos = feed.videos
+    when {
+        videos.isNotEmpty() -> LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(videos.distinctBy { it.id }.take(20), key = { keyPrefix + "-" + it.id }) { video -> HistoryCard(video) { onOpen(video) } }
+        }
+        feed.loading -> Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
+        }
+        else -> Text(
+            feed.error ?: stringResource(R.string.ui_row_empty),
+            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+    }
+}
+
+/** The search box under the expanded History heading: filters the loaded history by title or channel. */
+@Composable
+private fun HistorySearchField(value: String, onChange: (String) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(CircleShape)
+            .background(c.surfaceContainerHigh)
+            .padding(start = 16.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Search, null, tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f)) {
+            if (value.isEmpty()) {
+                Text(stringResource(R.string.ui_history_search_hint), color = c.onSurfaceVariant, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = OwnDirectionText.merge(TextStyle(color = c.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)),
+                cursorBrush = SolidColor(c.primary),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (value.isNotEmpty()) {
+            Box(Modifier.size(40.dp).pressable { onChange("") }, contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Close, stringResource(R.string.ui_clear_search), tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryCard(video: VideoItem, leftText: String? = null, onClick: () -> Unit) {
+    val menu = LocalVideoMenu.current
+    Column(Modifier.width(168.dp).prefetchOnPress(video.id).pressable(pressedScale = 0.97f, onLongClick = { menu(video) }, onClick = onClick)) {
+        Box {
+            Thumbnail(video.thumbnail, Modifier.fillMaxWidth().aspectRatio(16f / 9f), radius = 20)
+            DurationPill(video.durationSec, Modifier.align(Alignment.BottomEnd).padding(6.dp), small = true)
+            ResumeBar(video.id, Modifier.align(Alignment.BottomStart), serverPercent = video.watchedPercent, inset = 8.dp, thickness = 3.dp)
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(video.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (leftText != null) {
+            Text(leftText, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun PlaylistTile(playlist: PlaylistRef, modifier: Modifier, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(26.dp)
+    val (icon, tone) = when (playlist.id) {
+        "WL" -> Icons.Rounded.WatchLater to c.primaryContainer
+        "LL" -> Icons.Rounded.ThumbUp to c.tertiaryContainer
+        else -> Icons.AutoMirrored.Rounded.PlaylistPlay to c.secondaryContainer
+    }
+    Column(
+        modifier = modifier
+            .height(132.dp)
+            .pressable(pressedScale = 0.97f, onClick = onClick)
+            .clip(shape)
+            .background(c.surfaceContainerLow)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        if (playlist.thumbnail != null) {
+            Thumbnail(playlist.thumbnail, Modifier.size(width = 72.dp, height = 44.dp), radius = 12)
+        } else {
+            Box(Modifier.size(52.dp).clip(CookieShape).background(tone), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = contentColorFor(tone))
+            }
+        }
+        Column {
+            Text(playlist.title, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            playlist.subtitle?.let { Text(it, color = c.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+        }
+    }
+}
+
+/** Starts a list of videos from its first one, the rest going into the queue (Play all, Shuffle). Provided by the shell. */
+val LocalPlayAll = androidx.compose.runtime.staticCompositionLocalOf<(List<VideoItem>, Boolean) -> Unit> { { _, _ -> } }
+
+/** A playlist's videos (Watch later, Liked, or the user's own). Watch later and Liked also get filter chips. */
+@Composable
+fun PlaylistScreen(playlist: PlaylistRef, feed: FeedState, contentPadding: PaddingValues, onBack: () -> Unit, onOpen: (VideoItem) -> Unit) {
+    LaunchedEffect(playlist.id) { feed.ensureLoaded() }
+    // Filters built from what's saved there: the channels it holds, and how long the videos run.
+    val saved = playlist.id == "WL" || playlist.id == "LL"
+    var channelFilter by remember(playlist.id) { mutableStateOf<String?>(null) }
+    var lengthFilter by remember(playlist.id) { mutableStateOf<SearchLength?>(null) }
+    val videos = feed.videos
+    val channels = remember(videos) {
+        videos.filter { it.channel.isNotBlank() }.groupingBy { it.channel }.eachCount()
+            .entries.sortedByDescending { it.value }.take(8).map { it.key }
+    }
+    val lengths = remember(videos) { SearchLength.values().filter { l -> videos.any { lengthOf(it) == l } } }
+    // Open playlist, for "Remove from …" in a video's options.
+    androidx.compose.runtime.DisposableEffect(playlist.id, feed) {
+        PlaylistContext.current = PlaylistRemoval(playlist, feed)
+        onDispose { if (PlaylistContext.current?.playlist?.id == playlist.id) PlaylistContext.current = null }
+    }
+    val playAll = LocalPlayAll.current
+    val removeFrom = LocalPlaylistRemove.current
+    val removable = playlist.id == "WL" || playlist.id.startsWith("PL")
+    val filterOn = channelFilter != null || lengthFilter != null
+    val accept: ((VideoItem) -> Boolean)? = if (!saved || !filterOn) null else { v ->
+        (channelFilter == null || v.channel == channelFilter) && (lengthFilter == null || lengthOf(v) == lengthFilter)
+    }
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalSwipeRemove provides (if (removable && Account.signedIn) { v: VideoItem -> removeFrom(playlist, v) { feed.removeVideo(v.id) } } else null),
+    ) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+    CollapsingHeaderLayout(
+        resetKey = feed.generation,
+        header = {
+        Column {
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircleAction(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.ui_back), onBack)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                playlist.title,
+                fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, letterSpacing = (-0.8).sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (videos.isNotEmpty()) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HeroButton(Icons.Rounded.PlayArrow, stringResource(R.string.ui_play_all), primary = true) {
+                    playAll(if (accept == null) feed.videos else feed.videos.filter(accept), false)
+                }
+                HeroButton(Icons.Rounded.Shuffle, stringResource(R.string.ui_shuffle), primary = false) {
+                    playAll(if (accept == null) feed.videos else feed.videos.filter(accept), true)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+        }
+        if (saved && (channels.size > 1 || lengths.size > 1)) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                items(lengths, key = { "len-" + it.name }) { l ->
+                    SearchFilterPill(stringResource(l.label), lengthFilter == l) { lengthFilter = if (lengthFilter == l) null else l }
+                }
+                items(channels, key = { "ch-" + it }) { name ->
+                    SearchFilterPill(name, channelFilter == name) { channelFilter = if (channelFilter == name) null else name }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        }
+        },
+    ) { top ->
+        if (feed.videos.isEmpty() && !feed.loading && feed.error == null && !feed.hasMore) {
+            Box(Modifier.padding(top = top)) { EmptyState(Icons.Rounded.VideoLibrary, stringResource(R.string.ui_playlist_empty_title), stringResource(R.string.ui_playlist_empty_body)) }
+        } else {
+            FeedList(feed, contentPadding.withTop(top), onOpen, indicatorTop = top, filter = accept)
+        }
+    }
+    }
+    }
+}
+
+/** Which length chip a video falls under (the search filters' own cut-offs: 4 and 20 minutes). */
+private fun lengthOf(video: VideoItem): SearchLength? = when {
+    video.durationSec <= 0 -> null
+    video.durationSec < 240 -> SearchLength.Short
+    video.durationSec <= 1200 -> SearchLength.Medium
+    else -> SearchLength.Long
+}
+
+@Composable
+private fun TextLink(text: String, onClick: () -> Unit) {
+    Text(
+        text,
+        color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 14.sp,
+        modifier = Modifier.pressable(onClick = onClick).padding(8.dp),
+    )
+}
+
+// ── Search ─────────────────────────────────────────────────────────────────────
+
+/** Lives above the tab switcher so results survive switching tabs. */
+@Stable
+/** Search filters, one tap each on the page (tap again to clear); the numbers are YouTube's own codes. */
+enum class SearchDate(val code: Int, val label: Int) {
+    Today(2, R.string.search_f_today), Week(3, R.string.search_f_week), Month(4, R.string.search_f_month), Year(5, R.string.search_f_year),
+}
+enum class SearchLength(val code: Int, val label: Int) {
+    Short(1, R.string.search_f_short), Medium(3, R.string.search_f_medium), Long(2, R.string.search_f_long),
+}
+enum class SearchOrder(val code: Int, val label: Int) {
+    Newest(2, R.string.search_f_newest), Views(3, R.string.search_f_views),
+}
+
+class SearchState(private val scope: CoroutineScope) {
+    var query by mutableStateOf("")
+    var submitted by mutableStateOf("")
+        private set
+    var results by mutableStateOf<List<VideoItem>>(emptyList())
+        private set
+    var loading by mutableStateOf(false)
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var generation by mutableStateOf(0)
+        private set
+    var date by mutableStateOf<SearchDate?>(null)
+        private set
+    var length by mutableStateOf<SearchLength?>(null)
+        private set
+    var order by mutableStateOf<SearchOrder?>(null)
+        private set
+    /** The next page of a filtered search (the plain search comes as one page). */
+    var next by mutableStateOf<String?>(null)
+        private set
+    private var job: Job? = null
+
+    private val filtered get() = date != null || length != null || order != null
+
+    fun submit() {
+        val q = query.trim()
+        if (q.isEmpty()) return
+        SearchHistory.add(q)
+        run(q)
+    }
+
+    fun pick(value: SearchDate) { date = if (date == value) null else value; rerun() }
+    fun pick(value: SearchLength) { length = if (length == value) null else value; rerun() }
+    fun pick(value: SearchOrder) { order = if (order == value) null else value; rerun() }
+
+    private fun rerun() { if (submitted.isNotEmpty()) run(submitted) }
+
+    private fun run(q: String) {
+        submitted = q
+        loading = true
+        error = null
+        next = null
+        job?.cancel()
+        job = scope.launch {
+            runCatching {
+                if (filtered) InnerTube.search(q, InnerTube.searchParams(date?.code, length?.code, order?.code))
+                else FeedPage(YouTube.search(q), null)
+            }
+                .onSuccess { results = it.videos; next = it.next; generation++ }
+                .onFailure { error = YouTube.friendlyError(it) }
+            loading = false
+        }
+    }
+
+    fun loadMore() {
+        val token = next ?: return
+        if (loading) return
+        loading = true
+        val q = submitted
+        job = scope.launch {
+            runCatching { InnerTube.search(q, null, token) }
+                .onSuccess { page ->
+                    val seen = results.mapTo(HashSet()) { it.id }
+                    results = results + page.videos.filter { seen.add(it.id) }
+                    next = page.next
+                }
+                .onFailure { next = null }
+            loading = false
+        }
+    }
+}
+
+/** A filter chip: filled while it's on. */
+@Composable
+private fun SearchFilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Text(
+        label,
+        color = if (selected) c.onPrimary else c.onSurface,
+        fontWeight = FontWeight.Bold,
+        fontSize = 13.sp,
+        maxLines = 1,
+        modifier = Modifier
+            .pressable(pressedScale = 0.95f, onClick = onClick)
+            .clip(CircleShape)
+            .background(if (selected) c.primary else c.surfaceContainerHigh)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}
+
+/** Upload date, length and order as one row under the search bar: every filter a single tap away. */
+@Composable
+private fun SearchFilterRow(state: SearchState) {
+    val c = MaterialTheme.colorScheme
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        items(SearchDate.values().toList(), key = { "d-" + it.name }) { SearchFilterPill(stringResource(it.label), state.date == it) { state.pick(it) } }
+        item(key = "gap1") { Box(Modifier.padding(horizontal = 2.dp).size(width = 1.dp, height = 20.dp).background(c.outlineVariant)) }
+        items(SearchLength.values().toList(), key = { "l-" + it.name }) { SearchFilterPill(stringResource(it.label), state.length == it) { state.pick(it) } }
+        item(key = "gap2") { Box(Modifier.padding(horizontal = 2.dp).size(width = 1.dp, height = 20.dp).background(c.outlineVariant)) }
+        items(SearchOrder.values().toList(), key = { "o-" + it.name }) { SearchFilterPill(stringResource(it.label), state.order == it) { state.pick(it) } }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun SearchScreen(state: SearchState, contentPadding: PaddingValues, onOpen: (VideoItem) -> Unit, scrollToTop: Int = 0) {
+    val c = MaterialTheme.colorScheme
+    val columns = gridColumns()
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    val view = LocalView.current
+    // Search and Enter both dismiss the keyboard — every field, every time. A hide issued
+    // while the key event is still being dispatched can be undone by the IME, so the
+    // window-level hide is posted to run after it.
+    fun submit() {
+        focus.clearFocus(force = true)
+        keyboard?.hide()
+        view.postDelayed({
+            view.context.getSystemService(InputMethodManager::class.java)
+                ?.hideSoftInputFromWindow(view.windowToken, 0)
+        }, 120)
+        state.submit()
+    }
+    var focused by remember { mutableStateOf(false) }
+    // On a TV the remote lands on the first result once they're in (else it would fall back to the rail).
+    val tv = LocalWindowLayout.current.tv
+    val firstResult = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(state.generation) { if (tv && state.generation > 0 && state.results.isNotEmpty()) firstResult.focusWhenReady() }
+    // The keyboard closed by Back or its own button leaves the field focused; drop the focus
+    // with it so the history gives way to the results again.
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) { if (!imeVisible && focused) focus.clearFocus() }
+    // Past searches, filtered by what's typed: while typing, and on the empty page.
+    val history = SearchHistory.matching(state.query)
+    val showHistory = history.isNotEmpty() && (focused || state.submitted.isEmpty())
+    // The search bar rides with the header: both slide away together while scrolling results.
+    CollapsingHeaderLayout(
+        resetKey = Triple(scrollToTop, state.generation, showHistory),
+        header = { Column {
+        ScreenHeader(title = stringResource(R.string.ui_search_title))
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .height(60.dp)
+                .clip(CircleShape)
+                .background(c.surfaceContainerHigh)
+                .padding(start = 20.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.Search, null, tint = c.onSurfaceVariant)
+            Spacer(Modifier.width(12.dp))
+            Box(Modifier.weight(1f)) {
+                if (state.query.isEmpty()) {
+                    Text(stringResource(R.string.ui_search_hint), color = c.onSurfaceVariant, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+                BasicTextField(
+                    value = state.query,
+                    onValueChange = { state.query = it },
+                    singleLine = true,
+                    textStyle = OwnDirectionText.merge(TextStyle(color = c.onSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)),
+                    cursorBrush = SolidColor(c.primary),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { submit() }, onDone = { submit() }),
+                    // Hardware Enter doesn't go through the IME action; treat it the same.
+                    modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }.onPreviewKeyEvent { e ->
+                        if (e.key == Key.Enter || e.key == Key.NumPadEnter) {
+                            if (e.type == KeyEventType.KeyDown) submit()
+                            true
+                        } else false
+                    },
+                )
+            }
+            if (state.query.isNotEmpty()) {
+                Box(
+                    modifier = Modifier.size(44.dp).pressable { state.query = "" },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Rounded.Close, stringResource(R.string.ui_clear_search), tint = c.onSurfaceVariant) }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        if (state.submitted.isNotEmpty()) {
+            SearchFilterRow(state)
+            Spacer(Modifier.height(8.dp))
+        }
+        } },
+    ) { top ->
+        Box(Modifier.fillMaxSize()) {
+        val listShown = showHistory || (state.results.isNotEmpty() && state.error == null)
+        Box(Modifier.padding(top = if (listShown) 0.dp else top)) {
+        when {
+            showHistory -> SearchHistoryList(
+                history = history,
+                contentPadding = contentPadding.withTop(top),
+                onSearch = { state.query = it; submit() },
+            )
+            state.loading && state.results.isEmpty() -> Box(Modifier.fillMaxWidth().padding(top = 48.dp), Alignment.Center) {
+                CircularProgressIndicator(color = c.primary, strokeWidth = 4.dp, modifier = Modifier.size(36.dp))
+            }
+            state.error != null -> EmptyState(
+                icon = Icons.Rounded.CloudOff,
+                title = stringResource(R.string.ui_search_error_title),
+                body = state.error.orEmpty(),
+                action = { PillButton(stringResource(R.string.ui_try_again), { state.submit() }) },
+            )
+            state.submitted.isEmpty() -> EmptyState(
+                icon = Icons.Rounded.TravelExplore,
+                title = stringResource(R.string.ui_search_intro_title),
+                body = stringResource(R.string.ui_search_intro_body),
+            )
+            state.results.isEmpty() -> EmptyState(
+                icon = Icons.Rounded.History,
+                title = stringResource(R.string.ui_search_nothing_found),
+                body = stringResource(R.string.ui_search_no_match, state.submitted),
+            )
+            else -> {
+                val list = rememberScrollToTop(scrollToTop)
+                LaunchedEffect(state.generation) { list.scrollToItem(0) }
+                LazyColumn(state = list, contentPadding = contentPadding.withTop(top)) {
+                videoCards(state.results, columns, onOpen, firstFocus = firstResult)
+                // A filtered search pages on as the end comes into view.
+                if (state.next != null) item(key = "searchMore") {
+                    LaunchedEffect(state.results.size) { state.loadMore() }
+                    Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+                        CircularProgressIndicator(color = c.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
+                    }
+                }
+            }
+            }
+        }
+        }
+        }
+    }
+}
+
+@Composable
+private fun SearchHistoryList(history: List<String>, contentPadding: PaddingValues, onSearch: (String) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    LazyColumn(contentPadding = contentPadding) {
+        item(key = "header") {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(end = 12.dp),
+            ) {
+                SectionTitle(stringResource(R.string.ui_recent_searches), Modifier.weight(1f).alignByBaseline())
+                Box(Modifier.alignByBaseline()) { TextLink(stringResource(R.string.ui_clear_all)) { SearchHistory.clear() } }
+            }
+        }
+        items(history, key = { it }) { query ->
+            Row(
+                modifier = Modifier
+                    .animateItem()
+                    .fillMaxWidth()
+                    .pressable { onSearch(query) }
+                    .height(52.dp)
+                    .padding(start = 24.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.History, null, tint = c.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    query,
+                    modifier = Modifier.weight(1f),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Box(
+                    modifier = Modifier.size(44.dp).pressable { SearchHistory.remove(query) },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Rounded.Close, stringResource(R.string.ui_remove_search), tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
+            }
+        }
+    }
+}
