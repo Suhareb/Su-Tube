@@ -1,6 +1,6 @@
 # Su Tube
 
-An ad-free YouTube player for Android, built in Material 3 Expressive.
+An ad-free YouTube player for Android, built in Material 3 Expressive. A fork of Skipii.
 
 No ads. Use it signed out, or sign in with Google to get your own recommendations,
 subscriptions, history and playlists, with likes, subscribes and watch history syncing back.
