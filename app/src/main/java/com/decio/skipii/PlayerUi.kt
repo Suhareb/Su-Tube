@@ -1,5 +1,6 @@
 package com.decio.skipii
 
+import androidx.compose.material.icons.rounded.WatchLater
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -778,6 +779,15 @@ private fun AccountActions(state: PlayerState) {
             description = stringResource(R.string.player_dislike),
         ) { state.setLike(LikeStatus.Dislike) }
     }
+    // Watch later in one tap, before the playlists.
+    ActionPill(
+        icon = Icons.Rounded.WatchLater,
+        label = null,
+        active = false,
+        flourish = null,
+        shape = RoundedCornerShape(22.dp),
+        description = stringResource(R.string.ui_save_to_watch_later),
+    ) { state.current?.let(state::saveToWatchLater) }
     // Any of the account's playlists (GitHub issue #12).
     ActionPill(
         icon = Icons.Rounded.LibraryAdd,

@@ -1011,8 +1011,13 @@ private fun entries(): List<Entry> = buildList {
     add(Entry(pb, "swipe_brightness", str(R.string.settings_swipe_brightness_title), listOf(str(R.string.settings_swipe_brightness_line), str(R.string.settings_swipe_words))))
     add(Entry(pb, "swipe_volume", str(R.string.settings_swipe_volume_title), listOf(str(R.string.settings_swipe_volume_line), str(R.string.settings_swipe_words))))
     add(Entry(pb, "audio", str(R.string.bar_audio_only), listOf(str(R.string.settings_audio_only_line))))
+    add(Entry(pb, "bar_expanded", str(R.string.settings_bar_expanded_title), listOf(str(R.string.settings_bar_expanded_line), "bar", "pill", "card")))
+    add(Entry(pb, "bar_style", str(R.string.settings_bar_style_title), listOf("wavy", "squiggle", "progress", "seek bar")))
+    add(Entry(pb, "bar_extra_seek", str(R.string.settings_bar_extra_seek_title), listOf(str(R.string.settings_bar_extra_seek_line), "seek", "skip", "jump")))
+    add(Entry(pb, "bar_inner", str(R.string.settings_bar_inner_title), listOf("seek", "skip", "jump", "seconds")))
     add(Entry(pb, "background_play", str(R.string.settings_background_play_title), listOf(str(R.string.settings_background_play_line), "background", "screen off", "pause")))
     add(Entry(pb, "comment_copy", str(R.string.settings_comment_copy_title), listOf(str(R.string.settings_comment_copy_line), "copy", "clipboard", "comments")))
+    add(Entry(pb, "comment_timed_preview", str(R.string.settings_comment_timed_title), listOf(str(R.string.settings_comment_timed_line), "timestamp", "timed", "comments")))
     add(Entry(pb, "comment_search", str(R.string.settings_comment_search_title), listOf(str(R.string.settings_comment_search_line), "search", "comments")))
     add(Entry(pb, "live", str(R.string.settings_live_title), listOf(str(R.string.settings_live_line), str(R.string.settings_live_words))))
     val cc = SettingsPage.Captions
@@ -1397,6 +1402,28 @@ private fun PlaybackPage(player: PlayerState) {
             ) { FullscreenSwipes.turnVolume(it) }
         }
     }
+    // The playback bar: kept open by default, how its progress bar looks, and the extra seek buttons.
+    Spacer(Modifier.height(14.dp))
+    Joined(4) { i, shape ->
+        when (i) {
+            0 -> SwitchSetting(
+                "bar_expanded", shape, stringResource(R.string.settings_bar_expanded_title), stringResource(R.string.settings_bar_expanded_line),
+                BarPrefs.expandedByDefault, icon = Icons.Rounded.PlayArrow,
+            ) { BarPrefs.chooseExpanded(it) }
+            1 -> ChipsSetting(
+                "bar_style", shape, stringResource(R.string.settings_bar_style_title), null,
+                ProgressStyle.entries.map { it to it.label }, BarPrefs.progressStyle,
+            ) { BarPrefs.chooseStyle(it) }
+            2 -> SwitchSetting(
+                "bar_extra_seek", shape, stringResource(R.string.settings_bar_extra_seek_title), stringResource(R.string.settings_bar_extra_seek_line),
+                BarPrefs.extraSeek, icon = Icons.Rounded.PlayArrow,
+            ) { BarPrefs.chooseExtraSeek(it) }
+            else -> ChipsSetting(
+                "bar_inner", shape, stringResource(R.string.settings_bar_inner_title), null,
+                BarPrefs.innerChoices.map { it to "$it s" }, BarPrefs.innerSeconds,
+            ) { BarPrefs.chooseInner(it) }
+        }
+    }
     // Background play: off, and the video pauses when the app is left or the screen turns off.
     Spacer(Modifier.height(14.dp))
     Joined(1) { _, shape ->
@@ -1410,8 +1437,15 @@ private fun PlaybackPage(player: PlayerState) {
     }
     // Comments: copying with a long press, and the search button in the comments sheet.
     Spacer(Modifier.height(14.dp))
-    Joined(2) { i, shape ->
-        if (i == 0) SwitchSetting(
+    Joined(3) { i, shape ->
+        if (i == 2) SwitchSetting(
+            "comment_timed_preview", shape,
+            stringResource(R.string.settings_comment_timed_title),
+            stringResource(R.string.settings_comment_timed_line),
+            CommentPrefs.timedPreview,
+            icon = Icons.Rounded.ContentCopy,
+        ) { CommentPrefs.chooseTimedPreview(it) }
+        else if (i == 0) SwitchSetting(
             "comment_copy", shape,
             stringResource(R.string.settings_comment_copy_title),
             stringResource(R.string.settings_comment_copy_line),

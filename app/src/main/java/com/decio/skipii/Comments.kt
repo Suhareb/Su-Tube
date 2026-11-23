@@ -117,6 +117,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.launch
 
 /** Comments for the open video: first page, paging, per-comment replies, likes and posting. */
@@ -135,6 +136,7 @@ class CommentsState(private val scope: CoroutineScope) {
     var loading by mutableStateOf(false)
         private set
     var error by mutableStateOf<String?>(null)
+        private set
     /** YouTube's sort menu tokens (Top, Newest first) for this video; fewer than two = no sorting offered. */
     var sortTokens by mutableStateOf<List<String>>(emptyList())
         private set
@@ -161,8 +163,45 @@ class CommentsState(private val scope: CoroutineScope) {
     val repliesLoading = mutableStateMapOf<String, Boolean>()
     /** Replies (by id) whose answers are folded away (false); a reply that was answered shows them under it to begin with. */
     val nestedOpen = mutableStateMapOf<String, Boolean>()
+    /** The reply picked to show under a comment before it is opened (Top view only), by comment id; absent when none was good enough. */
+    val previewOf = mutableStateMapOf<String, Comment>()
+    private val previewPool = HashMap<String, List<Comment>>()
+    private val poolNext = HashMap<String, String>()
+    private val previewAsked = HashSet<String>()
+    private val previewGate = kotlinx.coroutines.sync.Semaphore(3)
+
+    private fun resetPreviews() {
+        previewOf.clear(); previewPool.clear(); poolNext.clear(); previewAsked.clear()
+    }
+
+    /**
+     * Top view: reads the first replies of a comment on screen once, to pick one worth showing under it. The
+     * rest stay folded; opening the thread reuses what was read, with no second request.
+     */
+    fun requestPreview(comment: Comment) {
+        val token = comment.repliesToken ?: return
+        if (newestFirst || comment.replyCount <= 0 || replies.containsKey(comment.id) || !previewAsked.add(comment.id)) return
+        val id = videoId ?: return
+        scope.launch {
+            previewGate.withPermit {
+                runCatching { CommentFeed.more(token) }
+                    .onSuccess { page ->
+                        if (videoId != id || newestFirst) return@onSuccess
+                        previewPool[comment.id] = page.comments
+                        page.next?.let { poolNext[comment.id] = it }
+                        ReplyPreview.best(comment, page.comments)?.let { previewOf[comment.id] = it }
+                        arrived(page.comments)
+                    }
+                    .onFailure { previewAsked.remove(comment.id) }
+            }
+        }
+    }
+
     /** The token for the next batch of replies under a comment (by id); absent when all are in. */
     val repliesNext = mutableStateMapOf<String, String>()
+
+    /** Only comments with a timestamp in them (the "Timed" chip). */
+    var timedOnly by mutableStateOf(false)
 
     /** The search over the loaded comments (the search button in the sheet's title). */
     var searchOpen by mutableStateOf(false)
@@ -170,6 +209,7 @@ class CommentsState(private val scope: CoroutineScope) {
 
     /** Whether [comment] shows while searching: its text or author, or any open reply's. */
     fun matchesSearch(comment: Comment): Boolean {
+        if (timedOnly && !hasTimestamp(comment.text) && replies[comment.id]?.any { hasTimestamp(it.text) } != true) return false
         val q = if (searchOpen && CommentPrefs.search) searchQuery.trim() else ""
         if (q.isEmpty()) return true
         fun hit(c: Comment) = c.text.contains(q, ignoreCase = true) || c.author.contains(q, ignoreCase = true) || c.name?.contains(q, ignoreCase = true) == true
@@ -184,8 +224,8 @@ class CommentsState(private val scope: CoroutineScope) {
         videoId = id
         comments = emptyList(); total = -1; disabled = false; error = null; next = null
         sortTokens = emptyList(); newestFirst = false
-        replies.clear(); repliesLoading.clear(); nestedOpen.clear(); repliesNext.clear(); replyingTo = null; draft = ""; postError = null
-        searchOpen = false; searchQuery = ""
+        replies.clear(); repliesLoading.clear(); nestedOpen.clear(); repliesNext.clear(); resetPreviews(); replyingTo = null; draft = ""; postError = null
+        searchOpen = false; searchQuery = ""; timedOnly = false
         loading = true
     }
 
@@ -205,8 +245,10 @@ class CommentsState(private val scope: CoroutineScope) {
         repliesLoading.clear()
         nestedOpen.clear()
         repliesNext.clear()
+        resetPreviews()
         searchOpen = false
         searchQuery = ""
+        timedOnly = false
         liked.clear()
         loading = true
         job?.cancel()
@@ -237,7 +279,7 @@ class CommentsState(private val scope: CoroutineScope) {
         newestFirst = newest
         job?.cancel()
         comments = emptyList(); next = null; error = null
-        replies.clear(); repliesLoading.clear()
+        replies.clear(); repliesLoading.clear(); repliesNext.clear(); nestedOpen.clear(); resetPreviews()
         loading = true
         job = scope.launch {
             runCatching { CommentFeed.more(token) }
@@ -274,6 +316,13 @@ class CommentsState(private val scope: CoroutineScope) {
     }
 
     fun loadReplies(comment: Comment) {
+        // Already read for the preview: open them from there.
+        val pooled = previewPool[comment.id]
+        if (pooled != null && !replies.containsKey(comment.id)) {
+            replies[comment.id] = pooled
+            poolNext[comment.id]?.let { repliesNext[comment.id] = it }
+            return
+        }
         val id = videoId ?: return
         val page = comment.repliesToken ?: return
         if (repliesLoading[comment.id] == true || replies.containsKey(comment.id)) return
@@ -289,6 +338,12 @@ class CommentsState(private val scope: CoroutineScope) {
                 }
             repliesLoading.remove(comment.id)
         }
+    }
+
+    /** One tap on a comment: opens its replies, or folds them all away again. */
+    fun toggleThread(comment: Comment) {
+        if (comment.replyCount <= 0 || comment.repliesToken == null) return
+        if (replies.containsKey(comment.id)) hideReplies(comment) else loadReplies(comment)
     }
 
     /** The next batch of replies under [comment], added below the ones showing. */
@@ -381,7 +436,8 @@ class CommentsState(private val scope: CoroutineScope) {
 fun CommentsCard(state: CommentsState, onOpen: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(24.dp)
-    val first = state.comments.firstOrNull()
+    // A comment with a timestamp first, when there is one (Settings › Playback can turn this off).
+    val first = (if (CommentPrefs.timedPreview) state.comments.firstOrNull { hasTimestamp(it.text) } else null) ?: state.comments.firstOrNull()
     Column(
         modifier = Modifier
             .padding(top = 16.dp)
@@ -445,6 +501,10 @@ fun CommentsPanel(state: CommentsState, partialTop: Dp, onClose: () -> Unit) {
                 SortChip(stringResource(R.string.comments_sort_top), selected = !state.newestFirst) { state.chooseSort(false) }
                 Spacer(Modifier.width(6.dp))
                 SortChip(stringResource(R.string.comments_sort_newest), selected = state.newestFirst) { state.chooseSort(true) }
+            }
+            if (state.comments.isNotEmpty()) {
+                Spacer(Modifier.width(6.dp))
+                SortChip(stringResource(R.string.comments_timed), selected = state.timedOnly) { state.timedOnly = !state.timedOnly }
             }
             if (CommentPrefs.search && state.comments.isNotEmpty()) {
                 Spacer(Modifier.width(10.dp))
@@ -711,6 +771,22 @@ private fun Composer(state: CommentsState) {
         }
         state.postError?.let { Text(it, color = c.error, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp, bottom = 6.dp)) }
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // Puts the video's current time in the comment, to write about a scene.
+            val now = LocalPlaybackPosition.current()
+            Text(
+                "+ (" + formatDuration(now) + ")",
+                color = c.onSurface.copy(alpha = 0.7f), fontWeight = FontWeight.ExtraBold, fontSize = 12.5.sp, maxLines = 1,
+                modifier = Modifier
+                    .pressable(pressedScale = 0.94f) {
+                        val stamp = formatDuration(now)
+                        state.draft = if (state.draft.isBlank()) "$stamp " else state.draft.trimEnd() + " $stamp "
+                        runCatching { requester.requestFocus() }
+                    }
+                    .clip(CircleShape)
+                    .background(c.onSurface.copy(alpha = 0.10f))
+                    .padding(horizontal = 11.dp, vertical = 10.dp),
+            )
+            Spacer(Modifier.width(8.dp))
             Box(
                 Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(c.surfaceContainerHighest)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -808,6 +884,10 @@ private fun CommentRow(
                         taps.job = tapScope.launch {
                             delay(TapWindowMs)
                             taps.count = 0
+                            if (seen == 1 && depth == 0) {
+                                // One tap on a comment with replies: open them, or fold them all away.
+                                state.toggleThread(comment)
+                            }
                             if (seen == 2 && canAct && state.liked[comment.id] != true) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 state.toggleLike(comment) { state.postError = it }
@@ -899,28 +979,6 @@ private fun CommentRow(
                     )
                 }
             }
-            if (!isReply && comment.replyCount > 0 && comment.repliesToken != null && !state.replies.containsKey(comment.id)) {
-                val busy = state.repliesLoading[comment.id] == true
-                Row(
-                    modifier = Modifier
-                        .padding(top = 6.dp)
-                        .pressable { state.loadReplies(comment) }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        plural(R.plurals.comments_replies, comment.replyCount.toLong(), comment.replyCount.toString()),
-                        color = c.primary,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 13.sp,
-                    )
-                    Icon(Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.size(18.dp))
-                    if (busy) {
-                        Spacer(Modifier.width(8.dp))
-                        CircularProgressIndicator(color = c.primary, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
-                    }
-                }
-            }
         }
     }
 }
@@ -962,7 +1020,34 @@ private fun LazyListScope.commentThreads(state: CommentsState, keyPrefix: String
     state.comments.forEach { comment ->
         if (!state.matchesSearch(comment)) return@forEach
         val replies = state.replies[comment.id]
-        item(key = keyPrefix + comment.id) { CommentRow(comment, state, threadOpen = replies != null) }
+        // Top view only (Newest is a plain timeline): one standout reply under a thread that isn't open yet.
+        val preview = if (replies == null && !state.newestFirst) state.previewOf[comment.id] else null
+        // A closed thread with no preview still gets its guide line, down from the comment into its reply counter.
+        val counter = replies == null && preview == null && comment.replyCount > 0 && comment.repliesToken != null
+        item(key = keyPrefix + comment.id) {
+            LaunchedEffect(comment.id, state.newestFirst) { state.requestPreview(comment) }
+            CommentRow(comment, state, threadOpen = replies != null || preview != null || counter)
+        }
+        if (counter) {
+            item(key = keyPrefix + "counter-" + comment.id) {
+                MoreRepliesRow(
+                    state.repliesLoading[comment.id] == true,
+                    label = plural(R.plurals.comments_replies, comment.replyCount.toLong(), comment.replyCount.toString()),
+                ) { state.loadReplies(comment) }
+            }
+        }
+        if (preview != null) {
+            val others = comment.replyCount - 1
+            item(key = keyPrefix + "preview-" + comment.id) { CommentRow(preview, state, depth = 1, isLast = others <= 0) }
+            if (others > 0) {
+                item(key = keyPrefix + "expand-" + comment.id) {
+                    MoreRepliesRow(
+                        state.repliesLoading[comment.id] == true,
+                        label = stringResource(R.string.comments_n_more_replies, others),
+                    ) { state.loadReplies(comment) }
+                }
+            }
+        }
         if (replies != null) {
             val more = state.repliesNext[comment.id] != null
             replyNodes(replyTree(replies), state, keyPrefix, depth = 1, trail = emptyList(), endsThread = !more)
@@ -1048,7 +1133,7 @@ private fun NestedRepliesToggle(count: Int, depth: Int, trail: List<Int>, onClic
 
 /** "More replies" at the end of a comment's thread: the next batch of replies. */
 @Composable
-private fun MoreRepliesRow(busy: Boolean, onClick: () -> Unit) {
+private fun MoreRepliesRow(busy: Boolean, label: String? = null, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val guide = c.outlineVariant
     val textStart = threadStart(0) + 48
@@ -1061,7 +1146,7 @@ private fun MoreRepliesRow(busy: Boolean, onClick: () -> Unit) {
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(stringResource(R.string.comments_more_replies), color = c.primary, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+        Text(label ?: stringResource(R.string.comments_more_replies), color = c.primary, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
         Icon(Icons.Rounded.ExpandMore, null, tint = c.primary, modifier = Modifier.size(18.dp))
         if (busy) {
             Spacer(Modifier.width(8.dp))
@@ -1114,11 +1199,20 @@ object CommentPrefs {
         private set
     var search by mutableStateOf(true)
         private set
+    /** The card under the video shows a comment with a timestamp when there is one (on to begin with). */
+    var timedPreview by mutableStateOf(true)
+        private set
+
+    fun chooseTimedPreview(on: Boolean) {
+        timedPreview = on
+        prefs?.edit()?.putBoolean("comment_timed_preview", on)?.apply()
+    }
 
     fun init(context: android.content.Context) {
         val p = context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE).also { prefs = it }
         copyOnLongPress = p.getBoolean("comment_copy", true)
         search = p.getBoolean("comment_search", true)
+        timedPreview = p.getBoolean("comment_timed_preview", true)
     }
 
     fun chooseCopy(on: Boolean) {
@@ -1186,3 +1280,11 @@ private fun linkedComment(text: String, tint: Color, context: android.content.Co
         }
     }
 }
+
+
+/** Whether [text] has a timestamp in it (4:21, 1:02:03). */
+internal fun hasTimestamp(text: String): Boolean = TimestampPattern.containsMatchIn(text)
+
+/** The video's current position (ms), for the comment box's time button. Provided by the shell. */
+val LocalPlaybackPosition = androidx.compose.runtime.staticCompositionLocalOf<() -> Long> { { 0L } }
+

@@ -37,8 +37,8 @@ object CommentPosting {
 
     suspend fun comment(videoId: String, text: String) = withContext(Dispatchers.IO) {
         val params = lock.withLock {
-            val vp = cache.getOrPut(videoId) { VideoParams() }
-            if (!vp.started) loadFirstPage(videoId, vp)
+            val vp = synchronized(cache) { cache.getOrPut(videoId) { VideoParams() } }
+            if (!vp.started && vp.createComment == null) loadFirstPage(videoId, vp)
             vp.createComment
         } ?: throw IOException(str(R.string.comments_error_cant_post))
         checkPosted(
@@ -47,7 +47,7 @@ object CommentPosting {
     }
 
     suspend fun reply(videoId: String, threadId: String, text: String) = withContext(Dispatchers.IO) {
-        val params = lock.withLock {
+        val params = knownReplyParams[threadId] ?: lock.withLock {
             val vp = cache.getOrPut(videoId) { VideoParams() }
             if (!vp.started) loadFirstPage(videoId, vp)
             var pages = 1
@@ -68,9 +68,24 @@ object CommentPosting {
      */
     private val knownLikes = java.util.concurrent.ConcurrentHashMap<String, Pair<String?, String?>>()
 
-    /** Remembers the like actions in a comments page the app is about to show. */
-    internal fun absorb(page: JSONObject) {
-        runCatching { knownLikes.putAll(parsePage(page).likeActions) }
+    /** Reply parameters of every thread the app has shown, by thread id. */
+    private val knownReplyParams = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * Remembers what a comments page the app is about to show carries: the like actions, the reply parameters of its
+     * threads and, from a video's first page, the parameters for a new comment. Posting then uses the very page the
+     * person is looking at, not a second read of it.
+     */
+    internal fun absorb(page: JSONObject, videoId: String? = null) {
+        runCatching {
+            val parsed = parsePage(page)
+            knownLikes.putAll(parsed.likeActions)
+            knownReplyParams.putAll(parsed.replyParams)
+            val create = parsed.createComment
+            if (videoId != null && create != null) {
+                synchronized(cache) { cache.getOrPut(videoId) { VideoParams() }.createComment = create }
+            }
+        }
     }
 
     /** Likes or unlikes a comment. Uses the actions seen with it; else looks further into the thread pages. */

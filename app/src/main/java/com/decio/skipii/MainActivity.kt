@@ -411,9 +411,14 @@ fun SkipiiApp() {
     // The open player's bar (PlayerBar.kt): its tools card / quality list close on Back, on a
     // tap anywhere else, and whenever the player stops being the open portrait page.
     val playerBar = remember { PlayerBarState(scope) }
-    BackHandler(enabled = playerBar.isOpen && playerOpen && !showFullscreen) { playerBar.closeAll() }
-    LaunchedEffect(playerOpen, showFullscreen, player.sheet) {
-        if (!playerOpen || showFullscreen || player.sheet != null) playerBar.closeAll()
+    BackHandler(enabled = playerBar.scrimActive && playerOpen && !showFullscreen) { playerBar.closeAll() }
+    // Kept open by default (Settings › Playback): the card opens with the player and stays; otherwise it folds away.
+    LaunchedEffect(playerOpen, showFullscreen, player.sheet, BarPrefs.expandedByDefault) {
+        val showing = playerOpen && !showFullscreen && player.sheet == null
+        playerBar.allowExpanded = showing
+        if (!showing) playerBar.closeAll(keepExpanded = false)
+        else if (BarPrefs.expandedByDefault) playerBar.openCard()
+        else if (playerBar.card.targetValue > 0f) playerBar.closeAll(keepExpanded = false)
     }
 
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -557,6 +562,8 @@ fun SkipiiApp() {
             LocalChannelOpener provides { url -> showChannel(url) },
             LocalVideoOpener provides { video -> player.open(video) },
             LocalSeek provides { ms -> player.seekTo(ms) },
+            LocalPlaybackPosition provides { player.positionMs },
+            LocalPlaylistRemove provides { playlist, video, done -> player.removeFromPlaylist(playlist, video, done) },
             LocalPlayAll provides { videos, shuffle -> player.playAll(videos, shuffle) },
             LocalQueueAdd provides { video -> player.addToQueue(video) },
             LocalQueuePosition provides { id -> player.queue.indexOfFirst { it.id == id } + 1 },
@@ -770,7 +777,7 @@ fun SkipiiApp() {
         // the tabs step down as it opens and come back up as it collapses.
         val navAway = { maxOf(settingsAway, if (PlayerControls.inBar) barAside else maxOf(barAside, ramp(morph.progress.value, 0f, 0.5f))) }
         // A tap anywhere outside the open card / list closes it (and goes no further).
-        if (playerBar.isOpen && playerOpen) {
+        if (playerBar.scrimActive && playerOpen) {
             Box(
                 Modifier.fillMaxSize().pointerInput(playerBar) {
                     awaitEachGesture {

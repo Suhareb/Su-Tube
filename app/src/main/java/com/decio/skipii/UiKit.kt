@@ -289,6 +289,12 @@ fun ChannelAvatar(url: String?, name: String, size: Int = 40) {
  * Full-width feed card: rounded thumbnail inside a 28 dp card, then avatar + title + meta.
  * The thumbnail sits 11 dp from the screen's edge (6 + 5), half the old 22 (Derek, 2026-10-31: wider thumbnails).
  */
+/** On a Watch later or own-playlist page: what a swipe right does instead of queueing (takes the video out). */
+val LocalSwipeRemove = androidx.compose.runtime.staticCompositionLocalOf<((VideoItem) -> Unit)?> { null }
+
+/** Takes a video out of a playlist, then [done] runs. Provided by the shell. */
+val LocalPlaylistRemove = androidx.compose.runtime.staticCompositionLocalOf<(PlaylistRef, VideoItem, () -> Unit) -> Unit> { { _, _, _ -> } }
+
 /** Adds a video to the queue (a swipe on its card). Provided by the shell. */
 val LocalQueueAdd = androidx.compose.runtime.staticCompositionLocalOf<(VideoItem) -> Unit> { {} }
 
@@ -302,12 +308,16 @@ val LocalQueuePosition = androidx.compose.runtime.staticCompositionLocalOf<(Stri
 @Composable
 fun Modifier.swipeToQueue(video: VideoItem, enabled: Boolean = true): Modifier {
     if (!enabled) return this
-    val add = LocalQueueAdd.current
+    val queue = LocalQueueAdd.current
+    val remove = LocalSwipeRemove.current
+    // In a playlist the swipe takes the video out; everywhere else it queues it.
+    val add: (VideoItem) -> Unit = remove ?: queue
+    val removing = remove != null
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val offset = remember(video.id) { Animatable(0f) }
     var width by remember { mutableFloatStateOf(1f) }
-    val tint = MaterialTheme.colorScheme.primary
+    val tint = if (removing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     return this
         .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
         // What the card uncovers: a plus that fills in as the swipe nears the line.
@@ -319,7 +329,7 @@ fun Modifier.swipeToQueue(video: VideoItem, enabled: Boolean = true): Modifier {
                 val arm = 10.dp.toPx() * (0.5f + 0.5f * progress)
                 val stroke = 3.dp.toPx()
                 drawLine(tint.copy(alpha = progress), androidx.compose.ui.geometry.Offset(cx - arm, cy), androidx.compose.ui.geometry.Offset(cx + arm, cy), stroke)
-                drawLine(tint.copy(alpha = progress), androidx.compose.ui.geometry.Offset(cx, cy - arm), androidx.compose.ui.geometry.Offset(cx, cy + arm), stroke)
+                if (!removing) drawLine(tint.copy(alpha = progress), androidx.compose.ui.geometry.Offset(cx, cy - arm), androidx.compose.ui.geometry.Offset(cx, cy + arm), stroke)
             }
         }
         .graphicsLayer { translationX = offset.value }

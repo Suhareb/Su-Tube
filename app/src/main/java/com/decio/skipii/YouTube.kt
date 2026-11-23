@@ -160,6 +160,8 @@ data class Comment(
     val repliesToken: String?,
     /** Liked by the signed-in account (from YouTube's toolbar state). */
     val liked: Boolean = false,
+    /** Written by the channel that owns the video. */
+    val isCreator: Boolean = false,
 )
 
 @Immutable

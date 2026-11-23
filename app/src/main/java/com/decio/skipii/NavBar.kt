@@ -88,6 +88,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -119,7 +120,11 @@ internal val BarPadding = 6.dp
 internal val PlayerBarPadding = 5.dp
 private val BarGap = 4.dp
 internal val PlayerBarGap = 5.dp
-internal val CompactBarWidth = PlayerBarPadding * 2 + SideSlotWidth * 2 + SeekSlotWidth * 2 + PlaySlotWidth + PlayerBarGap * 4
+/** The smaller seek pair, inside the usual one (Settings › Playback). */
+internal val InnerSeekWidth = 36.dp
+internal val CompactBarWidth: Dp
+    get() = PlayerBarPadding * 2 + SideSlotWidth * 2 + SeekSlotWidth * 2 + PlaySlotWidth + PlayerBarGap * 4 +
+        (if (BarPrefs.extraSeek) (InnerSeekWidth + PlayerBarGap) * 2 else 0.dp)
 // 0.5.37 (Derek): 10% taller (row 67) and, under it, the progress hairline's 8 dp (mockup A "Inside" in
 // docs/design/player-bar-progress.html): 316×75 at rest.
 // 0.5.38 (Derek): as much room above the buttons as below them (their inset + the hairline's
@@ -441,7 +446,9 @@ internal fun NavPill(
                 ) {
                     BarAudioOnly(player, enabled = controlsActive, modifier = Modifier.barEnter(progress, KeyEnterStart).then(scrubFade))
                     SeekButton(-1, player, progress, anchors, burst, controlsActive, Modifier.width(SeekSlotWidth).then(scrubFade))
+                    if (BarPrefs.extraSeek) InnerSeekButton(-1, player, progress, controlsActive, Modifier.width(InnerSeekWidth).then(scrubFade))
                     PlaySlot(player, progress, anchors, playInteraction, playScale, controlsActive, Modifier.width(PlaySlotWidth))
+                    if (BarPrefs.extraSeek) InnerSeekButton(1, player, progress, controlsActive, Modifier.width(InnerSeekWidth).then(scrubFade))
                     SeekButton(1, player, progress, anchors, burst, controlsActive, Modifier.width(SeekSlotWidth).then(scrubFade))
                     BarKey(bar, enabled = controlsActive, modifier = Modifier.barEnter(progress, KeyEnterStart).then(scrubFade))
                 }
@@ -591,6 +598,30 @@ private fun SeekButton(
             contentDescription = seekLabel(side),
             tint = c.onSurface,
             modifier = Modifier.size(PlayerIconSize).graphicsLayer { rotationZ = spin.value },
+        )
+    }
+}
+
+/** The smaller seek buttons beside play, a shorter jump ([BarPrefs.innerSeconds]) than the outer pair. */
+@Composable
+private fun InnerSeekButton(side: Int, player: PlayerState, progress: () -> Float, enabled: Boolean, modifier: Modifier) {
+    val c = MaterialTheme.colorScheme
+    val view = LocalView.current
+    Box(
+        modifier
+            .fillMaxHeight()
+            .barEnter(progress, SeekEnterStart)
+            .pressable(enabled = enabled) {
+                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                player.seekBy(side * BarPrefs.innerSeconds * 1000L)
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            seekIcon(forward = side > 0, seconds = BarPrefs.innerSeconds),
+            contentDescription = (if (side > 0) "+" else "−") + BarPrefs.innerSeconds + " s",
+            tint = c.onSurface.copy(alpha = 0.85f),
+            modifier = Modifier.size(PlayerIconSize * 0.75f),
         )
     }
 }

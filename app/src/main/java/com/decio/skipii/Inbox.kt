@@ -69,7 +69,31 @@ object Inbox {
         private set
     var error by mutableStateOf<String?>(null)
         private set
-    val unread get() = items.count { it.unread }
+    private var prefs: android.content.SharedPreferences? = null
+    private val locallyRead = HashSet<String>()
+    /** Counts up when notifications are marked read here, so what shows them redraws. */
+    var readVersion by mutableStateOf(0)
+        private set
+
+    fun init(context: android.content.Context) {
+        val p = context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE).also { prefs = it }
+        locallyRead += p.getStringSet("inbox_read", emptySet()).orEmpty()
+    }
+
+    private fun keyOf(item: InboxItem) = "${item.videoId}|${item.text}"
+
+    /** Unread on YouTube and not marked read here. */
+    fun isUnread(item: InboxItem): Boolean = readVersion >= 0 && item.unread && keyOf(item) !in locallyRead
+
+    val unread get() = items.count { isUnread(it) }
+
+    /** Marks everything listed as read (on this phone: YouTube's own count is its to keep). */
+    fun markAllRead() {
+        items.forEach { locallyRead += keyOf(it) }
+        while (locallyRead.size > 300) locallyRead.remove(locallyRead.first())
+        prefs?.edit()?.putStringSet("inbox_read", HashSet(locallyRead))?.apply()
+        readVersion++
+    }
 
     private var lastMs = 0L
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -157,11 +181,20 @@ private fun InboxSheet(onDismiss: () -> Unit) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = c.surfaceContainerLow,
     ) {
-        Text(
-            stringResource(R.string.inbox_title),
-            fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 21.sp,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
-        )
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.inbox_title),
+                fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 21.sp,
+                modifier = Modifier.weight(1f),
+            )
+            if (Inbox.unread > 0) {
+                Text(
+                    stringResource(R.string.inbox_mark_all_read),
+                    color = c.primary, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
+                    modifier = Modifier.pressable(pressedScale = 0.95f) { Inbox.markAllRead() }.clip(CircleShape).padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+        }
         val items = Inbox.items
         when {
             items.isNotEmpty() -> LazyColumn(Modifier.fillMaxWidth()) {
@@ -184,7 +217,7 @@ private fun InboxSheet(onDismiss: () -> Unit) {
                             .padding(horizontal = 20.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.Top,
                     ) {
-                        if (item.unread) {
+                        if (Inbox.isUnread(item)) {
                             Box(Modifier.padding(top = 18.dp, end = 8.dp).size(8.dp).clip(CircleShape).background(c.primary))
                         }
                         ChannelAvatar(item.avatar, item.text, size = 40)

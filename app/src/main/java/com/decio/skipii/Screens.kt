@@ -1,5 +1,9 @@
 package com.decio.skipii
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -527,6 +531,73 @@ private fun greeting(name: String, hour: Int, pick: Int): String {
     return options[pick % options.size].format(name)
 }
 
+/**
+ * The greeting, appearing in one of five ways (the same five for every greeting): typed out, rising and fading in,
+ * word by word, letters drawing together, or a light sweeping across it.
+ */
+@Composable
+private fun AnimatedGreeting(text: String, effect: Int) {
+    val ink = MaterialTheme.colorScheme.onSurface
+    val reduced = rememberReducedMotion()
+    val progress = remember(text, effect) { Animatable(if (reduced) 1f else 0f) }
+    LaunchedEffect(text, effect) {
+        if (!reduced) progress.animateTo(1f, tween(if (effect == 0) 1500 else 950, easing = LinearEasing))
+    }
+    val p = progress.value
+    val base = androidx.compose.ui.text.TextStyle(
+        fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = ink,
+    )
+    when (effect) {
+        // Typed out: the letters not typed yet keep their room, invisibly, so nothing shifts.
+        0 -> {
+            val shown = (p * text.length).toInt().coerceIn(0, text.length)
+            Text(
+                buildAnnotatedString {
+                    append(text.substring(0, shown))
+                    withStyle(SpanStyle(color = Color.Transparent)) { append(text.substring(shown)) }
+                },
+                style = base, maxLines = 2,
+            )
+        }
+        // Rising and fading in.
+        1 -> Text(
+            text, style = base, maxLines = 2,
+            modifier = Modifier.graphicsLayer { alpha = p; translationY = (1f - p) * 26.dp.toPx() },
+        )
+        // Word by word, each fading up in turn.
+        2 -> {
+            val words = text.split(' ')
+            Text(
+                buildAnnotatedString {
+                    words.forEachIndexed { i, word ->
+                        val a = (p * (words.size + 1) - i).coerceIn(0f, 1f)
+                        withStyle(SpanStyle(color = ink.copy(alpha = a))) { append(word) }
+                        if (i < words.lastIndex) append(" ")
+                    }
+                },
+                style = base, maxLines = 2,
+            )
+        }
+        // Letters drawing together out of a wide spread.
+        3 -> Text(
+            text, style = base.copy(letterSpacing = (16f * (1f - p)).sp, color = ink.copy(alpha = p)), maxLines = 2,
+        )
+        // A light sweeping across, then the plain text.
+        else -> {
+            val w = with(androidx.compose.ui.platform.LocalDensity.current) { 360.dp.toPx() }
+            val style = if (p >= 1f) base else base.copy(
+                brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = listOf(ink.copy(alpha = 0.22f), ink, ink.copy(alpha = 0.22f)),
+                    start = androidx.compose.ui.geometry.Offset(-w + p * 2f * w, 0f),
+                    end = androidx.compose.ui.geometry.Offset(p * 2f * w, 0f),
+                ),
+            )
+            Text(text, style = style, maxLines = 2)
+        }
+    }
+}
+
 /** The Library's greeting: the profile picture, "Hello, name", then View channel on the left and Settings on the right. */
 @Composable
 private fun LibraryHero(onSettings: () -> Unit) {
@@ -539,13 +610,10 @@ private fun LibraryHero(onSettings: () -> Unit) {
     ) {
         ChannelAvatar(profile.avatar, profile.name, size = 88)
         Spacer(Modifier.height(10.dp))
-        // A different greeting for the time of day, picked once each time the Library opens.
+        // A different greeting for the time of day, and one of five ways it appears, picked each time the Library opens.
         val pick = remember { kotlin.random.Random.nextInt(5) }
-        Text(
-            greeting(profile.name, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), pick),
-            fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp,
-            maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
+        val effect = remember { kotlin.random.Random.nextInt(5) }
+        AnimatedGreeting(greeting(profile.name, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), pick), effect)
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             if (handle != null) {
@@ -729,10 +797,15 @@ fun PlaylistScreen(playlist: PlaylistRef, feed: FeedState, contentPadding: Paddi
         onDispose { if (PlaylistContext.current?.playlist?.id == playlist.id) PlaylistContext.current = null }
     }
     val playAll = LocalPlayAll.current
+    val removeFrom = LocalPlaylistRemove.current
+    val removable = playlist.id == "WL" || playlist.id.startsWith("PL")
     val filterOn = channelFilter != null || lengthFilter != null
     val accept: ((VideoItem) -> Boolean)? = if (!saved || !filterOn) null else { v ->
         (channelFilter == null || v.channel == channelFilter) && (lengthFilter == null || lengthOf(v) == lengthFilter)
     }
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalSwipeRemove provides (if (removable && Account.signedIn) { v: VideoItem -> removeFrom(playlist, v) { feed.removeVideo(v.id) } } else null),
+    ) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
     CollapsingHeaderLayout(
         resetKey = feed.generation,
@@ -784,6 +857,7 @@ fun PlaylistScreen(playlist: PlaylistRef, feed: FeedState, contentPadding: Paddi
         } else {
             FeedList(feed, contentPadding.withTop(top), onOpen, indicatorTop = top, filter = accept)
         }
+    }
     }
     }
 }

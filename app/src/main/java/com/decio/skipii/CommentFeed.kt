@@ -68,7 +68,7 @@ object CommentFeed {
         // No comments section at all: they're turned off for this video.
         val start = token ?: return@withContext CommentsPage(emptyList(), total = -1, disabled = true, next = null, chapters = chapters)
         val json = InnerTube.postAny("next", JSONObject().put("continuation", start))
-        CommentPosting.absorb(json)
+        CommentPosting.absorb(json, videoId)
         parsePage(json).copy(chapters = chapters)
     }
 
@@ -170,6 +170,7 @@ object CommentFeed {
             replyCount = replyCount,
             repliesToken = repliesToken?.takeIf { replyCount > 0 },
             liked = state?.optString("likeState") == "TOOLBAR_LIKE_STATE_LIKED",
+            isCreator = author?.optBoolean("isCreator") == true,
         )
     }
 }

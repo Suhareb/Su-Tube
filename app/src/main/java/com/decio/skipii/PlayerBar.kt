@@ -1,5 +1,16 @@
 package com.decio.skipii
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.unit.IntRect
 import android.content.Context
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.animation.animateColorAsState
@@ -133,7 +144,7 @@ internal val SideSlotWidth = 41.dp
 // row of tools over the transport row, so the open bar is a short rounded card. It reaches CardHeight
 // above the resting bar's bottom and CardBelow under it, where the chapter and time sit under the line.
 private val CardWidth = 380.dp
-private val CardHeight = 160.dp
+private val CardHeight = 204.dp
 private val CardBelow = 24.dp
 /** With chapters, the strip holds the Chapters button instead, so it's a little taller. */
 private val CardBelowChapters = 46.dp
@@ -144,6 +155,9 @@ private val ScrubBarHeight = 112.dp
 private val TrackWidth = 348.dp
 private val TrackHeight = 40.dp
 private val TrackBottom = 16.dp
+/** The seek bar at the top of the open card. */
+private val SeekBarHeight = 36.dp
+private val SeekTrackThickness = 10.dp
 private val OpenCorner = 32.dp
 private val QualityWidth = 380.dp
 private val ListRowHeight = 42.dp
@@ -230,7 +244,14 @@ internal class PlayerBarState(private val scope: CoroutineScope) {
     var reduced = false
 
     /** Open or opening: Back and a tap outside close it. */
+    /** The bar is showing as the open player's (not fullscreen, no sheet): the card may stay open by default. */
+    var allowExpanded = false
     val isOpen by derivedStateOf { card.targetValue > 0f || panel.targetValue > 0f }
+    /**
+     * Whether a tap elsewhere should close what's open (and Back too). Not for the card kept open by default:
+     * only for the lists, or the card when it isn't kept open.
+     */
+    val scrimActive: Boolean get() = isOpen && !(BarPrefs.expandedByDefault && allowExpanded && panel.targetValue < 0.5f)
     val cardShown by derivedStateOf { card.value > 0.001f }
     val panelShown by derivedStateOf { panel.value > 0.001f }
     val scrubShown by derivedStateOf { scrub.value > 0.001f }
@@ -256,7 +277,12 @@ internal class PlayerBarState(private val scope: CoroutineScope) {
 
     fun openCard() { animate(panel, 0f); animate(card, 1f) }
     fun openPanel(kind: BarPanel) { panelKind = kind; captionsAll = false; animate(card, 0f); animate(panel, 1f) }
-    fun closeAll() { hot = null; animate(card, 0f); animate(panel, 0f) }
+    /** Folds everything; back to the open card instead when it's kept open by default ([keepExpanded]). */
+    fun closeAll(keepExpanded: Boolean = true) {
+        hot = null
+        animate(card, if (keepExpanded && allowExpanded && BarPrefs.expandedByDefault) 1f else 0f)
+        animate(panel, 0f)
+    }
     /** A finger let go of [value] moving at [velocity] (units per second): open or close it. */
     fun settle(value: Animatable<Float, *>, velocity: Float, wasOpen: Boolean) {
         val open = when {
@@ -420,6 +446,8 @@ internal fun Modifier.playerBarGestures(
             val cardOpen = bar.card.targetValue >= 0.5f
             val panelOpen = bar.panel.targetValue >= 0.5f
             val atRest = !cardOpen && !panelOpen && gate() >= 1f
+            // The card kept open by default can't be dragged shut (the lists still can).
+            val cardLocked = cardOpen && !panelOpen && BarPrefs.expandedByDefault && bar.allowExpanded
             val startCard = bar.card.value
             val startPanel = bar.panel.value
             val cardTravel = CardHeight.toPx() - restH
@@ -485,7 +513,7 @@ internal fun Modifier.playerBarGestures(
                             // Sideways from anywhere on the resting bar: a scrub (its buttons only ever got taps).
                             atRest && abs(moved.x) > abs(moved.y) && duration > 0 -> 1
                             inList && !(moved.y > abs(moved.x) && panelList?.canScrollBackward == false) -> 4
-                            abs(moved.y) > abs(moved.x) -> 2
+                            abs(moved.y) > abs(moved.x) && !cardLocked -> 2
                             else -> 4
                         }
                         if (mode == 1) {
@@ -560,6 +588,8 @@ internal fun BarKey(bar: PlayerBarState, enabled: Boolean, modifier: Modifier) {
     val view = LocalView.current
     val tile = barTile()
     val open = { maxOf(bar.card.value, bar.panel.value).coerceIn(0f, 1f) }
+    // Kept open by default: nothing to open or close, so no key (its room stays, the play slot stays centred).
+    if (BarPrefs.expandedByDefault) { Box(modifier.size(SideSlotWidth)); return }
     Box(
         modifier
             .size(SideSlotWidth)
@@ -631,6 +661,7 @@ internal fun BarCard(bar: PlayerBarState, player: PlayerState, gate: () -> Float
     val tools = bar.tools
     val live = bar.cardLive
     Box(Modifier.fillMaxSize()) {
+        CardSeekBar(bar, player, Modifier.align(Alignment.TopCenter).padding(top = 14.dp).graphicsLayer { alpha = ramp(bar.card.value * gate(), 0.5f, 1f) })
         // Chapter · time, under the line: this box ends at the resting bar's bottom; the card reaches cardBelow further.
         // With chapters it's a button (the very bottom of the card) that opens the chapter list.
         val below = bar.cardBelow()
@@ -777,7 +808,7 @@ internal fun BarProgress(bar: PlayerBarState, player: PlayerState, played: Anima
                 // Where playback is now, and (scrubbing) where it would land, under the thumb.
                 val now = played.value.coerceIn(0f, 1f)
                 val f = (bar.previewMs?.let { it / dur } ?: now).coerceIn(0f, 1f)
-                val alpha = ramp(g, 0.4f, 1f)
+                val alpha = ramp(g, 0.4f, 1f) * (1f - bar.card.value.coerceIn(0f, 1f))
                 trackPath.reset()
                 trackPath.addRoundRect(RoundRect(r, CornerRadius(corner)))
                 clipPath(trackPath) {
@@ -1394,5 +1425,173 @@ internal fun ScrubOverlay(bar: PlayerBarState, player: PlayerState, sheets: Stor
         Icon(Icons.Rounded.Close, null, tint = ink, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(6.dp))
         Text(stringResource(R.string.bar_cancel), color = ink, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+    }
+}
+
+
+/** How the progress bar's played stretch is drawn (Settings › Playback). */
+enum class ProgressStyle(val label: String) {
+    Flat("Flat"), Wavy("Wavy"), Flowing("Flowing wave"), Dotted("Dotted")
+}
+
+/** The playback bar's own preferences. */
+object BarPrefs {
+    private var prefs: android.content.SharedPreferences? = null
+    /** The card (tools, progress, chapter and time) is open whenever the player is, with no key to close it. */
+    var expandedByDefault by mutableStateOf(true)
+        private set
+    var progressStyle by mutableStateOf(ProgressStyle.Flat)
+        private set
+    /** A second, smaller pair of seek buttons inside the usual pair. */
+    var extraSeek by mutableStateOf(true)
+        private set
+    var innerSeconds by mutableStateOf(5)
+        private set
+    val innerChoices = listOf(3, 5, 10, 15)
+
+    fun init(context: android.content.Context) {
+        val p = context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE).also { prefs = it }
+        expandedByDefault = p.getBoolean("bar_expanded", true)
+        progressStyle = p.getString("bar_progress_style", null)?.let { n -> ProgressStyle.entries.firstOrNull { it.name == n } } ?: ProgressStyle.Flat
+        extraSeek = p.getBoolean("bar_extra_seek", true)
+        innerSeconds = p.getInt("bar_inner_seconds", 5).takeIf { it in innerChoices } ?: 5
+    }
+
+    fun chooseExpanded(on: Boolean) { expandedByDefault = on; prefs?.edit()?.putBoolean("bar_expanded", on)?.apply() }
+    fun chooseStyle(value: ProgressStyle) { progressStyle = value; prefs?.edit()?.putString("bar_progress_style", value.name)?.apply() }
+    fun chooseExtraSeek(on: Boolean) { extraSeek = on; prefs?.edit()?.putBoolean("bar_extra_seek", on)?.apply() }
+    fun chooseInner(seconds: Int) { innerSeconds = seconds; prefs?.edit()?.putInt("bar_inner_seconds", seconds)?.apply() }
+}
+
+/**
+ * The seek bar at the top of the open card: a thick track you can tap to jump to a spot, or drag along to scrub, with
+ * a small picture of the video at that spot (YouTube's storyboard) and its time above your finger. The played stretch is
+ * drawn as the chosen [ProgressStyle].
+ */
+@Composable
+private fun CardSeekBar(bar: PlayerBarState, player: PlayerState, modifier: Modifier) {
+    val c = MaterialTheme.colorScheme
+    val view = LocalView.current
+    val style = BarPrefs.progressStyle
+    val sheets = rememberStoryboardSheets(player)
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    val duration = player.durationMs.coerceAtLeast(1L)
+    val shownFraction = dragging ?: (player.positionMs.toFloat() / duration).coerceIn(0f, 1f)
+    val phase = if (style == ProgressStyle.Flowing && !bar.reduced) {
+        val transition = rememberInfiniteTransition(label = "wave")
+        val p by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "wavePhase")
+        p
+    } else 0f
+    val track = c.primary.copy(alpha = 0.28f).compositeOver(c.surfaceVariant)
+    val chapters = player.details?.chapters.orEmpty()
+    Box(
+        modifier
+            .width(TrackWidth)
+            .height(SeekBarHeight)
+            .pointerInput(duration) {
+                detectTapGestures { p ->
+                    haptic(view, HapticFeedbackConstants.CONTEXT_CLICK)
+                    player.seekTo(((p.x / size.width).coerceIn(0f, 1f) * duration).toLong())
+                }
+            }
+            .pointerInput(duration) {
+                detectHorizontalDragGestures(
+                    onDragStart = { p -> dragging = (p.x / size.width).coerceIn(0f, 1f); haptic(view, HapticFeedbackConstants.CLOCK_TICK) },
+                    onHorizontalDrag = { change, _ ->
+                        change.consume()
+                        val f = (change.position.x / size.width).coerceIn(0f, 1f)
+                        if (chapters.isNotEmpty()) {
+                            val before = player.chapterAt((( dragging ?: f) * duration).toLong())
+                            if (player.chapterAt((f * duration).toLong()) != before) haptic(view, HapticFeedbackConstants.CLOCK_TICK)
+                        }
+                        dragging = f
+                    },
+                    onDragEnd = { dragging?.let { player.seekTo((it * duration).toLong()) }; dragging = null },
+                    onDragCancel = { dragging = null },
+                )
+            }
+            .drawBehind {
+                val th = SeekTrackThickness.toPx()
+                val cy = size.height / 2f
+                val w = size.width
+                val x = w * shownFraction
+                val held = dragging != null
+                when (style) {
+                    ProgressStyle.Flat -> {
+                        val r = CornerRadius(th / 2f)
+                        drawRoundRect(track, Offset(0f, cy - th / 2f), Size(w, th), r)
+                        drawRoundRect(c.primary, Offset(0f, cy - th / 2f), Size(x.coerceAtLeast(th), th), r)
+                        // Chapter edges cut through as slits.
+                        chapters.forEach { ch ->
+                            if (ch.startMs <= 0) return@forEach
+                            val cx = w * (ch.startMs.toFloat() / duration)
+                            drawRect(c.surfaceVariant, Offset(cx - 1.25.dp.toPx(), cy - th / 2f), Size(2.5.dp.toPx(), th))
+                        }
+                    }
+                    ProgressStyle.Wavy, ProgressStyle.Flowing -> {
+                        val stroke = 5.dp.toPx()
+                        drawLine(track, Offset(x, cy), Offset(w, cy), stroke, StrokeCap.Round)
+                        val amp = 3.6.dp.toPx()
+                        val length = 22.dp.toPx()
+                        val path = Path()
+                        var px = 0f
+                        path.moveTo(0f, cy)
+                        while (px <= x) {
+                            path.lineTo(px, cy + amp * kotlin.math.sin((px / length + phase) * 2f * Math.PI.toFloat()))
+                            px += 2f
+                        }
+                        drawPath(path, c.primary, style = Stroke(stroke, cap = StrokeCap.Round))
+                    }
+                    ProgressStyle.Dotted -> {
+                        val step = 11.dp.toPx()
+                        val r = 2.6.dp.toPx()
+                        var dx = r
+                        while (dx <= w) {
+                            drawCircle(if (dx <= x) c.primary else track, if (dx <= x) r * 1.15f else r, Offset(dx, cy))
+                            dx += step
+                        }
+                    }
+                }
+                // The knob, bigger while it's held.
+                val kh = if (held) 30.dp.toPx() else 22.dp.toPx()
+                drawRoundRect(c.onSurface, Offset(x - 2.dp.toPx(), cy - kh / 2f), Size(4.dp.toPx(), kh), CornerRadius(2.dp.toPx()))
+            },
+    ) {
+        dragging?.let { f -> SeekPreview(player, sheets, f, duration) }
+    }
+}
+
+/** The little picture and time above the finger while the card's seek bar is being dragged. */
+@Composable
+private fun SeekPreview(player: PlayerState, sheets: StoryboardSheets, fraction: Float, duration: Long) {
+    val c = MaterialTheme.colorScheme
+    val ms = (fraction * duration).toLong()
+    val boards = player.details?.storyboards.orEmpty()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val gap = with(density) { 14.dp.roundToPx() }
+    val provider = remember(fraction) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+                val x = (anchorBounds.left + anchorBounds.width * fraction - popupContentSize.width / 2f).roundToInt()
+                    .coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
+                return IntOffset(x, anchorBounds.top - popupContentSize.height - gap)
+            }
+        }
+    }
+    Popup(popupPositionProvider = provider, properties = PopupProperties(focusable = false, clippingEnabled = false)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            boards.lastOrNull()?.let { board ->
+                val size = previewSize(board)
+                StoryboardThumb(
+                    sheets, boards, ms, duration,
+                    Modifier.size(size.width * 0.75f, size.height * 0.75f).clip(RoundedCornerShape(12.dp)).background(c.surfaceVariant),
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+            Text(
+                formatDuration(ms), color = c.onSurface, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.clip(CircleShape).background(c.surfaceContainerHighest).padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
     }
 }
