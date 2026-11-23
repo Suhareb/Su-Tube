@@ -240,4 +240,15 @@
     <string name="captions_word_by_word_line" translatable="false">Auto-generated captions appear as each word is said</string>
     <string name="captions_second" translatable="false">Second language</string>
     <string name="captions_second_line" translatable="false">Shown under the first, translated on the phone if the video doesn\'t have it</string>
+    <string name="comments_n_more_replies" translatable="false">%1$d more replies</string>
+    <string name="comments_timed" translatable="false">Timed</string>
+    <string name="settings_comment_timed_title" translatable="false">Timed comments in the preview</string>
+    <string name="settings_comment_timed_line" translatable="false">The comments card under the video shows a comment with a timestamp first, when there is one</string>
+    <string name="inbox_mark_all_read" translatable="false">Mark all as read</string>
+    <string name="settings_bar_expanded_title" translatable="false">Playback bar expanded by default</string>
+    <string name="settings_bar_expanded_line" translatable="false">The controls card opens with the player and stays open. Off: open it with the ⋮ key or by swiping up</string>
+    <string name="settings_bar_style_title" translatable="false">Progress bar style</string>
+    <string name="settings_bar_extra_seek_title" translatable="false">Extra seek buttons</string>
+    <string name="settings_bar_extra_seek_line" translatable="false">A second, smaller pair of seek buttons next to play</string>
+    <string name="settings_bar_inner_title" translatable="false">Small seek buttons jump</string>
 </resources>
