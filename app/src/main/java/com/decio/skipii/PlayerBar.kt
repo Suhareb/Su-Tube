@@ -1479,7 +1479,14 @@ private fun CardSeekBar(bar: PlayerBarState, player: PlayerState, modifier: Modi
     val shownFraction = dragging ?: (player.positionMs.toFloat() / duration).coerceIn(0f, 1f)
     val phase = if (style == ProgressStyle.Flowing && !bar.reduced) {
         val transition = rememberInfiniteTransition(label = "wave")
-        val p by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "wavePhase")
+        val p by transition.animateFloat(
+            initialValue = 0f, 
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1400, easing = LinearEasing)
+            ),
+            label = "wavePhase"
+        )
         p
     } else 0f
     val track = c.primary.copy(alpha = 0.28f).compositeOver(c.surfaceVariant)
