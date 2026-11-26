@@ -1,5 +1,6 @@
 package com.decio.skipii
 
+import androidx.compose.material.icons.rounded.Forum
 import android.Manifest
 import android.content.Intent
 import androidx.compose.material.icons.rounded.Link
@@ -1037,6 +1038,7 @@ private fun entries(): List<Entry> = buildList {
     add(Entry(ap, "mode", str(R.string.settings_mode), listOf(str(R.string.ui_mode_system), str(R.string.ui_mode_light), str(R.string.ui_mode_dark))))
     add(Entry(ap, "amoled", str(R.string.settings_amoled_title), listOf(str(R.string.settings_amoled_line), "AMOLED", "OLED")))
     add(Entry(ap, "font", str(R.string.ui_font_title), listOf(str(R.string.ui_font_line), "ttf", "otf", "typeface")))
+    add(Entry(ap, "posts_tab", str(R.string.settings_posts_title), listOf(str(R.string.settings_posts_line), "community", "tab", "navigation")))
     add(Entry(ap, "nav_glass", str(R.string.ui_nav_glass_title), listOf(str(R.string.ui_nav_glass_line), "liquid", "glass", "blur", "navigation")))
     add(Entry(ap, "hide_mostly_watched", str(R.string.ui_hide_mostly_title), listOf(str(R.string.ui_hide_mostly_line), "watched", "hide", "feed")))
     add(Entry(ap, "hide_all_watched", str(R.string.ui_hide_all_title), listOf(str(R.string.ui_hide_all_line), "watched", "hide", "feed")))
@@ -1728,6 +1730,13 @@ private fun AppearancePage() {
         }
     }
     Note(fontNote ?: stringResource(R.string.ui_font_note))
+    Spacer(Modifier.height(14.dp))
+    Joined(1) { _, shape ->
+        SwitchSetting(
+            "posts_tab", shape, stringResource(R.string.settings_posts_title), stringResource(R.string.settings_posts_line),
+            PostsSetting.enabled, icon = Icons.Rounded.Forum,
+        ) { PostsSetting.choose(it) }
+    }
     Spacer(Modifier.height(14.dp))
     Joined(1) { _, shape ->
         SwitchSetting(

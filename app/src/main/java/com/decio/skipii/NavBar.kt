@@ -222,7 +222,7 @@ internal fun NavPill(
     val playScale = animateFloatAsState(if (playPressed && !reduced) 0.94f else 1f, spring(dampingRatio = 0.6f, stiffness = 1400f), label = "playPress")
     // Hold a tab, then slide along the bar: the tab under the finger shows as selected until you let go.
     var slideTarget by remember { mutableStateOf<Tab?>(null) }
-    val shownTabs = Tab.entries.filter { it != Tab.Shorts || ShortsSetting.enabled }
+    val shownTabs = Tab.entries.filter { (it != Tab.Shorts || ShortsSetting.enabled) && (it != Tab.Posts || PostsSetting.enabled) }
 
     Box(modifier.widthIn(max = NavWidth).height(NavHeight).fillMaxWidth().onPlaced { anchors.outer = it }) {
         Box(

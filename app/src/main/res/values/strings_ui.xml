@@ -251,4 +251,11 @@
     <string name="settings_bar_extra_seek_title" translatable="false">Extra seek buttons</string>
     <string name="settings_bar_extra_seek_line" translatable="false">A second, smaller pair of seek buttons next to play</string>
     <string name="settings_bar_inner_title" translatable="false">Small seek buttons jump</string>
+    <string name="app_tab_posts" translatable="false">Posts</string>
+    <string name="posts_signed_out_title" translatable="false">Posts from your channels</string>
+    <string name="posts_signed_out_body" translatable="false">Sign in to see what the channels you follow have posted.</string>
+    <string name="posts_empty_title" translatable="false">No posts yet</string>
+    <string name="posts_empty_body" translatable="false">None of the channels you follow have posted lately, or their posts couldn\'t be loaded. Pull down to try again.</string>
+    <string name="settings_posts_title" translatable="false">Posts tab</string>
+    <string name="settings_posts_line" translatable="false">Show a tab with what the channels you follow have posted</string>
 </resources>

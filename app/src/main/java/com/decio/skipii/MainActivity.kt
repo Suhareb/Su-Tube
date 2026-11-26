@@ -1,5 +1,7 @@
 package com.decio.skipii
 
+import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.rounded.Forum
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -192,6 +194,7 @@ enum class Tab(@StringRes val labelRes: Int, val icon: ImageVector, val selected
     Home(R.string.app_tab_home, Icons.Outlined.Home, Icons.Rounded.Home),
     Subscriptions(R.string.app_tab_subscriptions, Icons.Outlined.Subscriptions, Icons.Rounded.Subscriptions),
     Shorts(R.string.app_tab_shorts, Icons.Outlined.SlowMotionVideo, Icons.Rounded.SlowMotionVideo),
+    Posts(R.string.app_tab_posts, Icons.Outlined.Forum, Icons.Rounded.Forum),
     Search(R.string.app_tab_search, Icons.Rounded.Search, Icons.Rounded.Search),
     Library(R.string.app_tab_library, Icons.Outlined.VideoLibrary, Icons.Rounded.VideoLibrary);
 
@@ -242,14 +245,8 @@ fun SkipiiApp() {
     var shortsListOnTab by rememberSaveable { mutableStateOf(false) }
     // A playlist opened from a channel page goes over it (else the channel goes over the playlist).
     var playlistOverChannel by remember { mutableStateOf(false) }
-    // A new-video notification's tap: that video opens in the player (leaving Shorts, as a channel page's video does).
-    LaunchedEffect(NewVideos.opening) {
-        val video = NewVideos.opening ?: return@LaunchedEffect
-        NewVideos.opening = null
-        settingsOpen = false
-        if (tab == Tab.Shorts) tab = shortsFrom
-        player.open(video)
-    }
+    // A comment notification's tap: the video's comments on their own, with that comment marked.
+    var commentTarget by remember { mutableStateOf<CommentTarget?>(null) }
     // The live activity's tap (LiveActivity.kt): the player opens on what's playing, once the controller has it back.
     LaunchedEffect(LiveControls.openPlayer, player.current) {
         if (!LiveControls.openPlayer) return@LaunchedEffect
@@ -377,6 +374,33 @@ fun SkipiiApp() {
         if (tab != Tab.Shorts) { shortsFrom = tab; tab = Tab.Shorts }
     }
 
+    /**
+     * A video tapped anywhere (history, a playlist, a link, a notification): a Short opens in Shorts, as the tab
+     * shows it, and carries on into more of them; anything else opens in the player. Only what could be a Short
+     * (they run up to three minutes) is asked about, and the answer is kept.
+     */
+    fun openVideo(video: VideoItem) {
+        if (video.durationSec > 180) { player.open(video); return }
+        scope.launch {
+            if (ShortCheck.isShort(video.id)) {
+                // The player makes room; Shorts pauses it on the way in and carries on when it leaves.
+                player.expanded = false
+                openShorts(ShortsList(listOf(video), 0, InnerTube.reelSequenceParams(video.id)) { token -> InnerTube.shorts(token) })
+            } else {
+                player.open(video)
+            }
+        }
+    }
+
+    // A new-video notification's tap: that video opens in the player, or in Shorts if it is one (leaving Shorts, as a channel page's video does).
+    LaunchedEffect(NewVideos.opening) {
+        val video = NewVideos.opening ?: return@LaunchedEffect
+        NewVideos.opening = null
+        settingsOpen = false
+        if (tab == Tab.Shorts) tab = shortsFrom
+        openVideo(video)
+    }
+
     /** ‹ / Back on Shorts: to the tab it was opened from, or back to the channel page a short came from. */
     fun leaveShorts() {
         val back = shortsBackTo
@@ -446,6 +470,7 @@ fun SkipiiApp() {
         }
     }
     // Shorts turned off (account sheet) while it was the tab: back to where it was opened from.
+    LaunchedEffect(PostsSetting.enabled) { if (!PostsSetting.enabled && tab == Tab.Posts) tab = Tab.Home }
     LaunchedEffect(ShortsSetting.enabled) { if (!ShortsSetting.enabled && tab == Tab.Shorts) tab = shortsFrom }
     LaunchedEffect(tab == Tab.Shorts) {
         if (tab == Tab.Shorts) shortsMorph.animateTo(1f, if (reduced) snap() else tween(ShortsEnterMs, easing = androidx.compose.animation.core.LinearEasing))
@@ -560,7 +585,8 @@ fun SkipiiApp() {
             LocalPictureInPicture provides pip,
             LocalVideoMenu provides { optionsFor = it },
             LocalChannelOpener provides { url -> showChannel(url) },
-            LocalVideoOpener provides { video -> player.open(video) },
+            LocalVideoOpener provides { video -> openVideo(video) },
+            LocalCommentsOpener provides { target -> player.expanded = false; settingsOpen = false; commentTarget = target },
             LocalSeek provides { ms -> player.seekTo(ms) },
             LocalPlaybackPosition provides { player.positionMs },
             LocalPlaylistRemove provides { playlist, video, done -> player.removeFromPlaylist(playlist, video, done) },
@@ -582,7 +608,7 @@ fun SkipiiApp() {
         ) { t ->
             when (t) {
                 Tab.Home -> HomeScreen(
-                    lib, contentPadding, onOpen = player::open, onSearch = { tab = Tab.Search },
+                    lib, contentPadding, onOpen = ::openVideo, onSearch = { tab = Tab.Search },
                     onSignIn = { signingIn = true }, onAccount = { settingsOpen = true },
                     scrollToTop = scrollToTop[Tab.Home] ?: 0,
                     shortsCard = if (wide && ShortsSetting.enabled && shorts.items.isNotEmpty()) {
@@ -590,7 +616,7 @@ fun SkipiiApp() {
                     } else null,
                 )
                 Tab.Subscriptions -> SubscriptionsScreen(
-                    lib, contentPadding, onOpen = player::open,
+                    lib, contentPadding, onOpen = ::openVideo,
                     onSignIn = { signingIn = true }, onAccount = { settingsOpen = true },
                     scrollToTop = scrollToTop[Tab.Subscriptions] ?: 0,
                 )
@@ -598,9 +624,14 @@ fun SkipiiApp() {
                     shorts, { shortsMorph.value }, overlayBottom = stackBottom + GlassHeight + 16.dp,
                     shortFocus = shortFocus, barFocus = if (tv) shortsBarFocus else null,
                 )
-                Tab.Search -> SearchScreen(search, contentPadding, onOpen = player::open, scrollToTop = scrollToTop[Tab.Search] ?: 0)
+                Tab.Posts -> PostsScreen(
+                    contentPadding, onOpen = ::openVideo,
+                    onSignIn = { signingIn = true }, onAccount = { settingsOpen = true },
+                    scrollToTop = scrollToTop[Tab.Posts] ?: 0,
+                )
+                Tab.Search -> SearchScreen(search, contentPadding, onOpen = ::openVideo, scrollToTop = scrollToTop[Tab.Search] ?: 0)
                 Tab.Library -> LibraryScreen(
-                    lib, contentPadding, onOpen = player::open, onOpenPlaylist = { openPlaylist = it },
+                    lib, contentPadding, onOpen = ::openVideo, onOpenPlaylist = { openPlaylist = it },
                     onSignIn = { signingIn = true }, onAccount = { settingsOpen = true },
                     scrollToTop = scrollToTop[Tab.Library] ?: 0,
                 )
@@ -617,7 +648,7 @@ fun SkipiiApp() {
             val pl = openPlaylist
             val feed = playlistFeed
             if (pl != null && feed != null) Box(Modifier.tvPage(toRail = true)) {
-                PlaylistScreen(pl, feed, contentPadding, onBack = { openPlaylist = null }, onOpen = player::open)
+                PlaylistScreen(pl, feed, contentPadding, onBack = { openPlaylist = null }, onOpen = ::openVideo)
             }
         }
 
@@ -631,12 +662,29 @@ fun SkipiiApp() {
                 ChannelScreen(
                     ch, contentPadding, onBack = { openChannel = null },
                     // A video from a channel opened in Shorts plays in the app's player: Shorts closes.
-                    onOpen = { v -> if (tab == Tab.Shorts) tab = shortsFrom; player.open(v) },
+                    onOpen = { v -> if (tab == Tab.Shorts) tab = shortsFrom; openVideo(v) },
                     onOpenShorts = ::openShorts,
                     onOpenPlaylist = { playlistOverChannel = true; openPlaylist = it },
                     onMessage = { player.actionMessage = it },
                 )
             } }
+        }
+
+        // A comment notification opens the video's comments on their own, over everything below the mini-player.
+        AnimatedVisibility(
+            visible = commentTarget != null,
+            enter = if (reduced) fadeIn(snap()) else slideInHorizontally(tween(340, easing = Motion.Emphasized)) { it } + fadeIn(tween(120)),
+            exit = if (reduced) fadeOut(snap()) else slideOutHorizontally(tween(300, easing = Motion.Emphasized)) { it } + fadeOut(tween(220)),
+        ) {
+            commentTarget?.let { t ->
+                Box(Modifier.tvPage(toRail = true)) {
+                    NotificationCommentsScreen(
+                        t,
+                        onClose = { commentTarget = null },
+                        onOpenVideo = { v -> commentTarget = null; openVideo(v) },
+                    )
+                }
+            }
         }
 
         }
@@ -645,7 +693,7 @@ fun SkipiiApp() {
         if (showRail) {
             NavRail(
                 selected = tab,
-                tabs = Tab.entries.filter { it != Tab.Shorts || ShortsSetting.enabled },
+                tabs = Tab.entries.filter { (it != Tab.Shorts || ShortsSetting.enabled) && (it != Tab.Posts || PostsSetting.enabled) },
                 onSelect = { t -> if (player.expanded) player.expanded = false; selectTab(t) },
                 modifier = Modifier.graphicsLayer { alpha = 1f - settingsAway },
             )
@@ -756,7 +804,7 @@ fun SkipiiApp() {
             Box(Modifier.padding(start = playerStart)) {
                 PlayerScreen(
                     player, morph,
-                    onOpen = player::open,
+                    onOpen = ::openVideo,
                     onCollapse = { player.expanded = false },
                     onFullscreen = { toggleFullscreen() },
                     // With the controls on the video there's no bar over the player (it steps down below).

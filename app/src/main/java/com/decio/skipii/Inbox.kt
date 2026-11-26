@@ -59,6 +59,8 @@ data class InboxItem(
     val thumbnail: String?,
     val videoId: String?,
     val unread: Boolean,
+    /** The comment or reply a notification is about (the link's `lc`; a reply's id has a dot in it). */
+    val commentId: String? = null,
 )
 
 /** The signed-in account's YouTube notifications (the bell by the profile picture). */
@@ -128,6 +130,9 @@ object Inbox {
                 val text = obj.text("shortMessage") ?: return@walk
                 val videoId = obj.optJSONObject("navigationEndpoint")?.optJSONObject("watchEndpoint")
                     ?.optString("videoId")?.ifBlank { null }
+                val link = obj.optJSONObject("navigationEndpoint")?.optJSONObject("commandMetadata")
+                    ?.optJSONObject("webCommandMetadata")?.optString("url").orEmpty()
+                val lc = link.substringAfter("lc=", "").substringBefore('&').ifBlank { null }
                 out += InboxItem(
                     text = text,
                     time = obj.text("sentTimeText"),
@@ -135,6 +140,7 @@ object Inbox {
                     thumbnail = obj.optJSONObject("videoThumbnail")?.thumbnails()?.lastOrNull(),
                     videoId = videoId,
                     unread = !obj.optBoolean("read"),
+                    commentId = lc,
                 )
             }
         }
@@ -176,6 +182,7 @@ fun InboxBell() {
 private fun InboxSheet(onDismiss: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val openVideo = LocalVideoOpener.current
+    val openComments = LocalCommentsOpener.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -204,13 +211,18 @@ private fun InboxSheet(onDismiss: () -> Unit) {
                             .fillMaxWidth()
                             .pressable(enabled = item.videoId != null) {
                                 item.videoId?.let { id ->
-                                    openVideo(
-                                        VideoItem(
-                                            id = id, title = item.text, channel = "", channelUrl = null,
-                                            thumbnail = item.thumbnail, avatar = item.avatar,
-                                            durationSec = 0, views = 0, uploaded = item.time,
-                                        ),
-                                    )
+                                    // About a comment (a reply, a like): the video's comments on their own, with it marked.
+                                    if (item.commentId != null) {
+                                        openComments(CommentTarget(id, item.text, item.thumbnail, item.commentId))
+                                    } else {
+                                        openVideo(
+                                            VideoItem(
+                                                id = id, title = item.text, channel = "", channelUrl = null,
+                                                thumbnail = item.thumbnail, avatar = item.avatar,
+                                                durationSec = 0, views = 0, uploaded = item.time,
+                                            ),
+                                        )
+                                    }
                                     onDismiss()
                                 }
                             }

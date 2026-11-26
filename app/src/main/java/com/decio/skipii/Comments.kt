@@ -1,5 +1,10 @@
 package com.decio.skipii
 
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.PlayArrow
 import android.util.Log
 
 import androidx.compose.foundation.background
@@ -199,6 +204,15 @@ class CommentsState(private val scope: CoroutineScope) {
 
     /** The token for the next batch of replies under a comment (by id); absent when all are in. */
     val repliesNext = mutableStateMapOf<String, String>()
+
+    /** The comment or reply a notification opened this on: drawn marked. */
+    var highlightId by mutableStateOf<String?>(null)
+
+    /** Puts the comment [id] first in the list (when it is in it). */
+    fun pinFirst(id: String) {
+        val found = comments.firstOrNull { it.id == id } ?: return
+        comments = listOf(found) + comments.filter { it.id != id }
+    }
 
     /** Only comments with a timestamp in them (the "Timed" chip). */
     var timedOnly by mutableStateOf(false)
@@ -858,6 +872,7 @@ private fun CommentRow(
     Row(
         Modifier
             .fillMaxWidth()
+            .then(if (state.highlightId == comment.id) Modifier.background(c.primary.copy(alpha = 0.14f)) else Modifier)
             // Double tap likes the comment, triple tap starts a reply (signed in only). A short wait after
             // each tap tells the two apart, so a triple tap never leaves a like behind.
             .pointerInput(comment.id) {
@@ -1288,3 +1303,101 @@ internal fun hasTimestamp(text: String): Boolean = TimestampPattern.containsMatc
 /** The video's current position (ms), for the comment box's time button. Provided by the shell. */
 val LocalPlaybackPosition = androidx.compose.runtime.staticCompositionLocalOf<() -> Long> { { 0L } }
 
+
+
+/** What a comment notification opens: the video's comments on their own, with the comment it is about. */
+class CommentTarget(val videoId: String, val title: String, val thumbnail: String?, val commentId: String?)
+
+/** Opens a comment notification's page. Provided by the shell. */
+val LocalCommentsOpener = androidx.compose.runtime.staticCompositionLocalOf<(CommentTarget) -> Unit> { {} }
+
+/**
+ * The video's comments on their own, from a notification about one of them. A reply it is about is found, opened
+ * and marked; anything else (a like, a new comment) just shows the comments. The video's picture stays at the
+ * top: tap it to watch the video.
+ */
+@Composable
+fun NotificationCommentsScreen(target: CommentTarget, onClose: () -> Unit, onOpenVideo: (VideoItem) -> Unit) {
+    val c = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val state = remember(target.videoId) { CommentsState(scope).also { it.load(target.videoId) } }
+    val commentId = target.commentId
+    val isReply = commentId?.contains('.') == true
+    val parentId = commentId?.substringBefore('.')
+    var pinned by remember(target) { mutableStateOf(false) }
+    var pagesRead by remember(target) { mutableStateOf(0) }
+    // The video's own title and picture (the notification only has its words).
+    var video by remember(target.videoId) {
+        mutableStateOf(
+            VideoItem(
+                id = target.videoId, title = target.title, channel = "", channelUrl = null, thumbnail = target.thumbnail,
+                avatar = null, durationSec = 0, views = 0, uploaded = null,
+            ),
+        )
+    }
+    LaunchedEffect(target.videoId) {
+        runCatching { YouTube.details(target.videoId, wait = false) }.onSuccess { video = it.item }
+    }
+    BackHandler(onBack = onClose)
+    // Finds the comment's thread: reads pages until it turns up (twenty at most), puts it first, opens its replies
+    // (and any answers within them) and marks the reply.
+    LaunchedEffect(state.comments.size, state.loading, state.replies.size, state.repliesNext.size, state.repliesLoading.size) {
+        val id = parentId ?: return@LaunchedEffect
+        val parent = state.comments.firstOrNull { it.id == id }
+        if (parent == null) {
+            if (!state.loading && state.hasMore && pagesRead < 20) { pagesRead++; state.loadMore() }
+            return@LaunchedEffect
+        }
+        if (!pinned) { pinned = true; state.pinFirst(id) }
+        if (!isReply) return@LaunchedEffect
+        state.highlightId = commentId
+        val replies = state.replies[id]
+        if (replies == null) {
+            state.loadReplies(parent)
+        } else {
+            replies.forEach { state.nestedOpen[it.id] = true }
+            if (replies.none { it.id == commentId } && state.repliesNext[id] != null && state.repliesLoading[id] != true) state.loadMoreReplies(parent)
+        }
+    }
+    Column(Modifier.fillMaxSize().background(c.surface).statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 16.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            CircleAction(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.ui_back), onClose)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                stringResource(R.string.comments_title),
+                fontFamily = RoundedHeavy, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, letterSpacing = (-0.8).sp,
+            )
+        }
+        // The video, kept at the top: a tap goes back to watching it.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .pressable(pressedScale = 0.98f) { onOpenVideo(video) }
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.width(150.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp))) {
+                Thumbnail(video.thumbnail, Modifier.fillMaxSize(), radius = 0)
+                Box(Modifier.align(Alignment.Center).size(34.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.PlayArrow, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(video.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
+        val list = rememberLazyListState()
+        LazyColumn(state = list, modifier = Modifier.weight(1f)) {
+            commentThreads(state, keyPrefix = "n-")
+            if (state.loading || state.hasMore) item(key = "n-loading") {
+                LaunchedEffect(state.comments.size) { if (parentId == null && !state.loading) state.loadMore() }
+                Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+                    CircularProgressIndicator(color = c.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
+                }
+            }
+            state.error?.let { message ->
+                item(key = "n-error") { Text(message, color = c.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
+            }
+        }
+        if (Account.signedIn) Composer(state)
+    }
+}
