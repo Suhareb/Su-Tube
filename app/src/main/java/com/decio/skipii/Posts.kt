@@ -402,5 +402,3 @@ private fun PostCard(post: PostItem, onOpen: (VideoItem) -> Unit, onChannel: () 
     }
 }
 ```[cite: 3]
-
-Commit and push this to `main`, then re-run `./gradlew assembleDebug assembleRelease --console=plain` in GitHub Actions.
