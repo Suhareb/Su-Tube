@@ -401,4 +401,3 @@ private fun PostCard(post: PostItem, onOpen: (VideoItem) -> Unit, onChannel: () 
         }
     }
 }
-```[cite: 3]
