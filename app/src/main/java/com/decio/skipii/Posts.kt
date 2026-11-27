@@ -1,7 +1,5 @@
 package com.decio.skipii
 
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Close
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.background
@@ -18,12 +16,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,7 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,6 +94,13 @@ object PostsSetting {
         enabled = on
         prefs?.edit()?.putBoolean("posts_tab", on)?.apply()
     }
+}
+
+enum class PostAge(val hours: Double, val label: String) {
+    Any(Double.POSITIVE_INFINITY, "All"),
+    Day(24.0, "24h"),
+    Week(24.0 * 7, "7d"),
+    Month(24.0 * 30, "30d"),
 }
 
 /**
@@ -297,11 +309,13 @@ fun androidx.compose.foundation.lazy.LazyListScope.postsItems(onOpen: (VideoItem
 private fun PostsFilters() {
     val c = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-        androidx.compose.foundation.lazy.LazyRow(
+        LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(PostAge.entries.toList(), key = { it.name }) { age -> SearchFilterPill(age.label, PostsFeed.age == age) { PostsFeed.age = age } }
+            items(PostAge.entries.toList(), key = { it.name }) { age ->
+                SearchFilterPill(age.label, PostsFeed.age == age) { PostsFeed.age = age }
+            }
         }
         Row(
             Modifier
@@ -319,12 +333,12 @@ private fun PostsFilters() {
                 if (PostsFeed.query.isEmpty()) {
                     Text(stringResource(R.string.posts_search_hint), color = c.onSurfaceVariant, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
-                androidx.compose.foundation.text.BasicTextField(
+                BasicTextField(
                     value = PostsFeed.query,
                     onValueChange = { PostsFeed.query = it },
                     singleLine = true,
-                    textStyle = OwnDirectionText.merge(androidx.compose.ui.text.TextStyle(color = c.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(c.primary),
+                    textStyle = OwnDirectionText.merge(TextStyle(color = c.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)),
+                    cursorBrush = SolidColor(c.primary),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -387,3 +401,6 @@ private fun PostCard(post: PostItem, onOpen: (VideoItem) -> Unit, onChannel: () 
         }
     }
 }
+```[cite: 3]
+
+Commit and push this to `main`, then re-run `./gradlew assembleDebug assembleRelease --console=plain` in GitHub Actions.
