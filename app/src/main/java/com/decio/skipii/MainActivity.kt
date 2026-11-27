@@ -156,6 +156,7 @@ class MainActivity : ComponentActivity() {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         (NewVideos.takeVideo(intent) ?: linkedVideo(intent))?.let { NewVideos.opening = it }
+        ActivityAlerts.takeTarget(intent)?.let { ActivityAlerts.opening = it }
         LiveControls.takeOpen(intent)
         setContent { SkipiiTheme { SkipiiApp() } }
     }
@@ -164,6 +165,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         (NewVideos.takeVideo(intent) ?: linkedVideo(intent))?.let { NewVideos.opening = it }
+        ActivityAlerts.takeTarget(intent)?.let { ActivityAlerts.opening = it }
         LiveControls.takeOpen(intent)
     }
 
@@ -399,6 +401,25 @@ fun SkipiiApp() {
         settingsOpen = false
         if (tab == Tab.Shorts) tab = shortsFrom
         openVideo(video)
+    }
+
+    // An alert's tap (a reply, a like, a follow): the comments page for a comment, the video otherwise.
+    LaunchedEffect(ActivityAlerts.opening) {
+        val target = ActivityAlerts.opening ?: return@LaunchedEffect
+        ActivityAlerts.opening = null
+        settingsOpen = false
+        if (tab == Tab.Shorts) tab = shortsFrom
+        player.expanded = false
+        if (target.commentId != null) {
+            commentTarget = target
+        } else {
+            openVideo(
+                VideoItem(
+                    id = target.videoId, title = target.title, channel = "", channelUrl = null, thumbnail = target.thumbnail,
+                    avatar = null, durationSec = 0, views = 0, uploaded = null,
+                ),
+            )
+        }
     }
 
     /** ‹ / Back on Shorts: to the tab it was opened from, or back to the channel page a short came from. */

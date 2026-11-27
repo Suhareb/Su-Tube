@@ -258,4 +258,22 @@
     <string name="posts_empty_body" translatable="false">None of the channels you follow have posted lately, or their posts couldn\'t be loaded. Pull down to try again.</string>
     <string name="settings_posts_title" translatable="false">Posts tab</string>
     <string name="settings_posts_line" translatable="false">Show a tab with what the channels you follow have posted</string>
+    <string name="inbox_clear" translatable="false">Clear</string>
+    <string name="settings_alerts_title" translatable="false">Activity alerts</string>
+    <string name="settings_alerts_line" translatable="false">Get a notification when something happens on your account, even when the app is closed</string>
+    <string name="settings_alerts_likes" translatable="false">Likes</string>
+    <string name="settings_alerts_likes_line" translatable="false">Someone likes your comment</string>
+    <string name="settings_alerts_follows" translatable="false">New followers</string>
+    <string name="settings_alerts_follows_line" translatable="false">Someone subscribes to your channel</string>
+    <string name="settings_alerts_mentions" translatable="false">Mentions</string>
+    <string name="settings_alerts_mentions_line" translatable="false">Someone mentions you</string>
+    <string name="settings_alerts_replies" translatable="false">Replies</string>
+    <string name="settings_alerts_replies_line" translatable="false">Someone replies to your comment</string>
+    <string name="subs_filter_all" translatable="false">All</string>
+    <string name="subs_filter_shorts" translatable="false">Shorts</string>
+    <string name="subs_filter_long" translatable="false">Long videos</string>
+    <string name="subs_filter_posts" translatable="false">Posts</string>
+    <string name="posts_search_hint" translatable="false">Search posts or a channel</string>
+    <string name="posts_none_match_title" translatable="false">No posts match</string>
+    <string name="posts_none_match_body" translatable="false">Try another time range or search.</string>
 </resources>

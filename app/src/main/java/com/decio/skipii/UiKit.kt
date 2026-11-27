@@ -237,10 +237,25 @@ fun Modifier.prefetchOnPress(videoId: String): Modifier = pointerInput(videoId) 
 /** Long-pressing any video opens its options (Play next, Add to queue, …). Provided by the app shell. */
 val LocalVideoMenu = staticCompositionLocalOf<(VideoItem) -> Unit> { {} }
 
+/**
+ * The 1280-wide still for a plain i.ytimg.com one (default, mqdefault, hqdefault, sddefault); any other address stays as
+ * it is. Not every video has one: [Thumbnail] falls back to the original when it fails to load.
+ */
+internal fun sharperThumbnail(url: String?): String? {
+    if (url == null) return null
+    val plain = Regex("^(https://i\\.ytimg\\.com/vi/[A-Za-z0-9_-]{11}/)(default|mqdefault|hqdefault|sddefault)\\.jpg$").find(url) ?: return url
+    return plain.groupValues[1] + "hq720.jpg"
+}
+
 @Composable
 fun Thumbnail(url: String?, modifier: Modifier = Modifier, radius: Int = 22) {
+    // Tablets, open foldables and TVs draw a picture far bigger than a phone does: they ask for the larger still.
+    val layout = LocalWindowLayout.current
+    var sharpFailed by remember(url) { mutableStateOf(false) }
+    val shown = if ((layout.wide || layout.tv) && !sharpFailed) sharperThumbnail(url) else url
     AsyncImage(
-        model = url,
+        model = shown,
+        onError = { if (shown != url) sharpFailed = true },
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = modifier

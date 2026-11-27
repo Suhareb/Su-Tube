@@ -1046,6 +1046,7 @@ private fun entries(): List<Entry> = buildList {
     add(Entry(ap, "theme", str(R.string.settings_theme), listOf(str(R.string.ui_theme_wallpaper)) + SKIPII_THEMES.map { it.name }))
     add(Entry(SettingsPage.Language, "lang", str(R.string.language_title), AppLanguage.choices.map { it.name } + str(R.string.language_phone)))
     val nt = SettingsPage.Notifications
+    add(Entry(nt, "alerts", str(R.string.settings_alerts_title), listOf(str(R.string.settings_alerts_line), "likes", "followers", "mentions", "replies", "push")))
     add(Entry(nt, "system", str(R.string.settings_system_notifications), listOf(str(R.string.settings_system_notifications_line))))
     Bells.on.values.forEach { ch -> ch.name?.let { add(Entry(nt, "bell_${ch.id}", it, listOf(str(R.string.settings_bell_line)))) } }
     add(Entry(SettingsPage.Account, "account", str(if (Account.signedIn) R.string.ui_sign_out else R.string.ui_sign_in), listOfNotNull(Account.profile?.name, "Google")))
@@ -1836,6 +1837,41 @@ private fun NotificationsPage(player: PlayerState) {
                     }
                 }
             }
+        }
+    }
+    // Alerts for likes, new followers, mentions and replies (the background pass reads the account's notifications).
+    val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) player.actionMessage = str(R.string.app_bell_allow_notifications)
+    }
+    Spacer(Modifier.height(12.dp))
+    Joined(5) { i, shape ->
+        when (i) {
+            0 -> SwitchSetting(
+                "alerts", shape, stringResource(R.string.settings_alerts_title), stringResource(R.string.settings_alerts_line),
+                ActivityAlerts.enabled, icon = Icons.Rounded.NotificationsActive,
+            ) { on ->
+                ActivityAlerts.choose(null, on)
+                if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
+                    androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) !=
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) askPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+            1 -> SwitchSetting(
+                "alerts_likes", shape, stringResource(R.string.settings_alerts_likes), stringResource(R.string.settings_alerts_likes_line),
+                ActivityAlerts.likes, enabled = ActivityAlerts.enabled,
+            ) { ActivityAlerts.choose(ActivityAlerts.Kind.Like, it) }
+            2 -> SwitchSetting(
+                "alerts_follows", shape, stringResource(R.string.settings_alerts_follows), stringResource(R.string.settings_alerts_follows_line),
+                ActivityAlerts.follows, enabled = ActivityAlerts.enabled,
+            ) { ActivityAlerts.choose(ActivityAlerts.Kind.Follow, it) }
+            3 -> SwitchSetting(
+                "alerts_mentions", shape, stringResource(R.string.settings_alerts_mentions), stringResource(R.string.settings_alerts_mentions_line),
+                ActivityAlerts.mentions, enabled = ActivityAlerts.enabled,
+            ) { ActivityAlerts.choose(ActivityAlerts.Kind.Mention, it) }
+            else -> SwitchSetting(
+                "alerts_replies", shape, stringResource(R.string.settings_alerts_replies), stringResource(R.string.settings_alerts_replies_line),
+                ActivityAlerts.replies, enabled = ActivityAlerts.enabled,
+            ) { ActivityAlerts.choose(ActivityAlerts.Kind.Reply, it) }
         }
     }
     Spacer(Modifier.height(12.dp))

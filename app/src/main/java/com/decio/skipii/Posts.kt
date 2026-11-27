@@ -1,5 +1,7 @@
 package com.decio.skipii
 
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Close
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.background
@@ -104,6 +106,18 @@ object PostsFeed {
         private set
     var error by mutableStateOf<String?>(null)
         private set
+    /** How recent the posts shown must be, and what they must mention (a channel's name, or words in the post). */
+    var age by mutableStateOf(PostAge.Any)
+    var query by mutableStateOf("")
+
+    /** The posts that pass the age and the search. */
+    fun visible(): List<PostItem> {
+        val q = query.trim()
+        return items.filter { post ->
+            post.ageHours <= age.hours &&
+                (q.isEmpty() || post.channelName.contains(q, ignoreCase = true) || post.text.contains(q, ignoreCase = true))
+        }
+    }
 
     private var loadedAt = 0L
     private var job: Job? = null
@@ -219,9 +233,7 @@ fun PostsScreen(
     onAccount: () -> Unit,
     scrollToTop: Int = 0,
 ) {
-    val c = MaterialTheme.colorScheme
     val signedIn = Account.signedIn
-    LaunchedEffect(signedIn) { if (signedIn) PostsFeed.ensureLoaded() }
     val openChannel = LocalChannelOpener.current
     CollapsingHeaderLayout(
         resetKey = scrollToTop,
@@ -243,25 +255,82 @@ fun PostsScreen(
                             action = { PillButton(stringResource(R.string.ui_sign_in_with_google), onSignIn) },
                         )
                     }
-                    return@LazyColumn
+                } else {
+                    postsItems(onOpen, openChannel)
                 }
-                items(PostsFeed.items, key = { it.id }) { post ->
-                    PostCard(post, onOpen) { openChannel("https://www.youtube.com/channel/${post.channelId}") }
+            }
+        }
+    }
+}
+
+/** The posts as list items: the time chips and the search box, then each post (shared by the Posts tab and Subscriptions). */
+fun androidx.compose.foundation.lazy.LazyListScope.postsItems(onOpen: (VideoItem) -> Unit, openChannel: (String) -> Unit) {
+    item(key = "postsFilters") {
+        // Read once the list is on screen (and again when it is old).
+        LaunchedEffect(Unit) { PostsFeed.ensureLoaded() }
+        PostsFilters()
+    }
+    val shown = PostsFeed.visible()
+    items(shown, key = { it.id }) { post ->
+        PostCard(post, onOpen) { openChannel("https://www.youtube.com/channel/${post.channelId}") }
+    }
+    if (PostsFeed.loading) {
+        item(key = "loading") {
+            Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
+            }
+        }
+    } else if (shown.isEmpty()) {
+        item(key = "empty") {
+            val filtered = PostsFeed.items.isNotEmpty()
+            EmptyState(
+                icon = Icons.Rounded.Forum,
+                title = stringResource(if (filtered) R.string.posts_none_match_title else R.string.posts_empty_title),
+                body = if (filtered) stringResource(R.string.posts_none_match_body) else PostsFeed.error ?: stringResource(R.string.posts_empty_body),
+            )
+        }
+    }
+}
+
+/** How recent (a chip each), and a search box: a channel's name finds that channel's posts; other words find them in the posts. */
+@Composable
+private fun PostsFilters() {
+    val c = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(PostAge.entries.toList(), key = { it.name }) { age -> SearchFilterPill(age.label, PostsFeed.age == age) { PostsFeed.age = age } }
+        }
+        Row(
+            Modifier
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .fillMaxWidth()
+                .height(46.dp)
+                .clip(CircleShape)
+                .background(c.surfaceContainerHigh)
+                .padding(start = 16.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.Search, null, tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.weight(1f)) {
+                if (PostsFeed.query.isEmpty()) {
+                    Text(stringResource(R.string.posts_search_hint), color = c.onSurfaceVariant, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
-                if (PostsFeed.loading) {
-                    item(key = "loading") {
-                        Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
-                            CircularProgressIndicator(color = c.primary, strokeWidth = 4.dp, modifier = Modifier.size(28.dp))
-                        }
-                    }
-                } else if (PostsFeed.items.isEmpty()) {
-                    item(key = "empty") {
-                        EmptyState(
-                            icon = Icons.Rounded.Forum,
-                            title = stringResource(R.string.posts_empty_title),
-                            body = PostsFeed.error ?: stringResource(R.string.posts_empty_body),
-                        )
-                    }
+                androidx.compose.foundation.text.BasicTextField(
+                    value = PostsFeed.query,
+                    onValueChange = { PostsFeed.query = it },
+                    singleLine = true,
+                    textStyle = OwnDirectionText.merge(androidx.compose.ui.text.TextStyle(color = c.onSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(c.primary),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (PostsFeed.query.isNotEmpty()) {
+                Box(Modifier.size(38.dp).pressable { PostsFeed.query = "" }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.Close, stringResource(R.string.ui_clear_search), tint = c.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
             }
         }

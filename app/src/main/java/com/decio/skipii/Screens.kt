@@ -184,15 +184,49 @@ fun SubscriptionsScreen(
     LaunchedEffect(signedIn) {
         if (signedIn) lib.showSubscriptions()
     }
+    // What the feed shows: everything, only Shorts, only long videos, or the channels' posts.
+    var kind by rememberSaveable { mutableStateOf(0) }
+    val kinds = listOf(
+        stringResource(R.string.subs_filter_all), stringResource(R.string.subs_filter_shorts),
+        stringResource(R.string.subs_filter_long), stringResource(R.string.subs_filter_posts),
+    )
+    val openChannel = LocalChannelOpener.current
     CollapsingHeaderLayout(
-        resetKey = scrollToTop to lib.subscriptions.generation,
-        header = { ScreenHeader(title = stringResource(R.string.ui_subscriptions_title)) { AccountAction(onAccount) } },
+        resetKey = Triple(scrollToTop, lib.subscriptions.generation, kind),
+        header = {
+            Column {
+                ScreenHeader(title = stringResource(R.string.ui_subscriptions_title)) { AccountAction(onAccount) }
+                if (signedIn) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    ) {
+                        items(kinds.size) { i -> SearchFilterPill(kinds[i], kind == i) { kind = i } }
+                    }
+                }
+            }
+        },
     ) { top ->
-        if (signedIn) {
-            FeedList(lib.subscriptions, contentPadding.withTop(top), onOpen, filter = { !WatchedFilter.hides(it) }, header = {
+        if (signedIn && kind == 3) {
+            PullToRefresh(enabled = true, refreshing = PostsFeed.loading, onRefresh = { PostsFeed.refresh() }, topPadding = top) {
+                LazyColumn(state = rememberScrollToTop(scrollToTop), contentPadding = contentPadding.withTop(top)) {
+                    postsItems(onOpen, openChannel)
+                }
+            }
+        } else if (signedIn) {
+            // Shorts are up to a minute here; "long" is ten minutes and over.
+            val accepts: (VideoItem) -> Boolean = { v ->
+                !WatchedFilter.hides(v) && when (kind) {
+                    1 -> v.durationSec in 1..60
+                    2 -> v.durationSec >= 600
+                    else -> true
+                }
+            }
+            FeedList(lib.subscriptions, contentPadding.withTop(top), onOpen, filter = accepts, header = {
                 // Always present (empty until loaded) so its arrival never shifts the list; the
                 // row kept from last time shows from the first frame (LibraryData).
-                item(key = "channels") { if (lib.channels.isNotEmpty()) ChannelRail(lib.channels) }
+                item(key = "channels") { if (lib.channels.isNotEmpty() && kind == 0) ChannelRail(lib.channels) }
             }, scrollToTop = scrollToTop, indicatorTop = top)
         } else {
             LazyColumn(contentPadding = contentPadding.withTop(top)) {
@@ -971,7 +1005,7 @@ class SearchState(private val scope: CoroutineScope) {
 
 /** A filter chip: filled while it's on. */
 @Composable
-private fun SearchFilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun SearchFilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
     val c = MaterialTheme.colorScheme
     Text(
         label,

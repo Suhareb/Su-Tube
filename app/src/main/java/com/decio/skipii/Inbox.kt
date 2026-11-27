@@ -73,6 +73,7 @@ object Inbox {
         private set
     private var prefs: android.content.SharedPreferences? = null
     private val locallyRead = HashSet<String>()
+    private val cleared = HashSet<String>()
     /** Counts up when notifications are marked read here, so what shows them redraws. */
     var readVersion by mutableStateOf(0)
         private set
@@ -80,6 +81,7 @@ object Inbox {
     fun init(context: android.content.Context) {
         val p = context.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE).also { prefs = it }
         locallyRead += p.getStringSet("inbox_read", emptySet()).orEmpty()
+        cleared += p.getStringSet("inbox_cleared", emptySet()).orEmpty()
     }
 
     private fun keyOf(item: InboxItem) = "${item.videoId}|${item.text}"
@@ -87,7 +89,21 @@ object Inbox {
     /** Unread on YouTube and not marked read here. */
     fun isUnread(item: InboxItem): Boolean = readVersion >= 0 && item.unread && keyOf(item) !in locallyRead
 
-    val unread get() = items.count { isUnread(it) }
+    /** What the list shows: the notifications, less the ones cleared here. */
+    val shown: List<InboxItem> get() = if (readVersion >= 0) items.filter { keyOf(it) !in cleared } else items
+
+    val unread get() = shown.count { isUnread(it) }
+
+    /** Clears the list (on this phone: they stay on YouTube); only newer notifications show after this. */
+    fun clearAll() {
+        items.forEach { cleared += keyOf(it) }
+        while (cleared.size > 500) cleared.remove(cleared.first())
+        prefs?.edit()?.putStringSet("inbox_cleared", HashSet(cleared))?.apply()
+        readVersion++
+    }
+
+    /** One read of the notifications, for the background check (no state changes). */
+    internal suspend fun fetchNow(): List<InboxItem> = fetch()
 
     /** Marks everything listed as read (on this phone: YouTube's own count is its to keep). */
     fun markAllRead() {
@@ -198,11 +214,18 @@ private fun InboxSheet(onDismiss: () -> Unit) {
                 Text(
                     stringResource(R.string.inbox_mark_all_read),
                     color = c.primary, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
-                    modifier = Modifier.pressable(pressedScale = 0.95f) { Inbox.markAllRead() }.clip(CircleShape).padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.pressable(pressedScale = 0.95f) { Inbox.markAllRead() }.clip(CircleShape).padding(horizontal = 10.dp, vertical = 8.dp),
+                )
+            }
+            if (Inbox.shown.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.inbox_clear),
+                    color = c.onSurfaceVariant, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp,
+                    modifier = Modifier.pressable(pressedScale = 0.95f) { Inbox.clearAll() }.clip(CircleShape).padding(horizontal = 10.dp, vertical = 8.dp),
                 )
             }
         }
-        val items = Inbox.items
+        val items = Inbox.shown
         when {
             items.isNotEmpty() -> LazyColumn(Modifier.fillMaxWidth()) {
                 itemsIndexed(items, key = { index, item -> "$index-${item.videoId}" }) { _, item ->

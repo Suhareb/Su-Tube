@@ -297,6 +297,8 @@ class NewVideoWorker(context: Context, params: WorkerParameters) : CoroutineWork
     override suspend fun doWork(): Result {
         runCatching { Bells.syncIfDue() }.onFailure { Log.w("Skipii", "bells: sync failed (${it.message})") }
         withContext(Dispatchers.IO) { NewVideos.check(applicationContext) }
+        // Likes, followers, mentions and replies, from the account's notifications.
+        runCatching { ActivityAlerts.check(applicationContext) }.onFailure { Log.w("Skipii", "alerts: check failed (${it.message})") }
         return Result.success()
     }
 }
